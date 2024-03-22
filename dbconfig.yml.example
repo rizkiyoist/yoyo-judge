@@ -1,0 +1,5 @@
+local:
+  dialect: mysql
+  datasource: username:@tcp(127.0.0.1:3306)/yoyojudge?parseTime=true
+  dir: migration
+  table: migrations
