@@ -1,4 +1,3 @@
-
 -- +migrate Up
 CREATE TABLE `yoyojudge`.`users` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -9,6 +8,6 @@ CREATE TABLE `yoyojudge`.`users` (
   PRIMARY KEY (`id`),
   UNIQUE INDEX `id_UNIQUE` (`id` ASC),
   UNIQUE INDEX `email_UNIQUE` (`email` ASC))
-ENGINE = InnoDB
+ENGINE = InnoDB;
 -- +migrate Down
 

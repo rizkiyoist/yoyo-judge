@@ -16,6 +16,6 @@ CREATE TABLE `yoyojudge`.`user_socials` (
     REFERENCES `yoyojudge`.`users` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
-ENGINE = InnoDB
+ENGINE = InnoDB;
 -- +migrate Down
 
