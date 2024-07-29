@@ -1,3 +1,4 @@
 *lock.*
 /yoyo-judge*
 dbconfig.yml
+env.json
