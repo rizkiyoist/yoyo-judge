@@ -7,10 +7,16 @@
 package main
 
 import (
-	"yoyo-judge/library/writer"
+	"fmt"
+	"yoyo-judge/config"
 )
 
 func main() {
-	writer.WriteXls()
-	// reader.ReadXls()
+	cfg := config.NewConfig()
+	db, err := config.InitSQL(cfg, "mysql")
+	if err != nil {
+		fmt.Printf("failed to connect to database: %v", err)
+	}
+	br := BuildRouterRequest{DB: db, Cfg: cfg}
+	BuildRouter(&br)
 }

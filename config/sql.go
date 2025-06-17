@@ -13,12 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type SQL interface {
-}
-
-type sql struct{}
-
-func (s *sql) InitSQL(env Config, key string) (db *gorm.DB, err error) {
+func InitSQL(env Config, key string) (db *gorm.DB, err error) {
 	dbUser := env.GetString(key + ".user")
 	dbPass := env.GetString(key + ".pass")
 	dbHost := env.GetString(key + ".host")

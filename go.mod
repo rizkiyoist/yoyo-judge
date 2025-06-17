@@ -3,6 +3,8 @@ module yoyo-judge
 go 1.22.1
 
 require (
+	github.com/gorilla/mux v1.8.1
+	github.com/rs/cors v1.11.1
 	github.com/spf13/viper v1.19.0
 	github.com/xuri/excelize/v2 v2.8.1
 	gorm.io/driver/mysql v1.5.7
