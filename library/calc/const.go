@@ -4,7 +4,7 @@
  * Copyright (c) 2024 Rizki Hadiaturrasyid
  */
 
-package calcmap
+package calc
 
 const (
 	// SET-UP
