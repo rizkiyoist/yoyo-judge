@@ -180,6 +180,16 @@ th {
   font-size: 0.9rem;
 }
 
+.badge-year {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .place-1 { color: #b8860b; font-weight: 700; }
 .place-2 { color: #708090; font-weight: 700; }
 .place-3 { color: #a0522d; font-weight: 700; }

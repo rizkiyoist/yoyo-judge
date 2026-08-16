@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useContestStore } from '../stores/contests'
-import type { JudgeAssignment, ScoringStage, User } from '../types'
+import type { Contest, JudgeAssignment, PlayerResult, ScoringStage, User } from '../types'
 
 const STAGE_ORDER: ScoringStage[] = ['prelim', 'final']
 
@@ -14,25 +14,44 @@ function orderedStages(stages: ScoringStage[]): ScoringStage[] {
 const auth = useAuthStore()
 const store = useContestStore()
 const newName = ref('')
+const newYear = ref(new Date().getFullYear())
 const creating = ref(false)
 
 const userId = computed(() => auth.user?.id ?? '')
 const judgesByContest = ref<Record<string, JudgeAssignment[]>>({})
 const usersById = ref<Record<string, User>>({})
+const resultsByDivisionStage = ref<Record<string, PlayerResult[]>>({})
 
 onMounted(async () => {
   if (userId.value) await store.fetchContests(userId.value)
 })
 
-// Load each contest's judge assignments (to show "Judges: ...") once the
-// contest list is known, and re-run whenever it changes (e.g. after create).
+function resultsKey(divisionId: string, stage: ScoringStage): string {
+  return `${divisionId}:${stage}`
+}
+
+function topThree(divisionId: string, stage: ScoringStage): PlayerResult[] {
+  return (resultsByDivisionStage.value[resultsKey(divisionId, stage)] ?? [])
+    .slice()
+    .sort((a, b) => a.place - b.place)
+    .slice(0, 3)
+}
+
+// Load each contest's judge assignments (to show "Judges: ...") and each
+// division+stage's results (to show the top 3) once the contest list is
+// known, and re-run whenever it changes (e.g. after create).
 watch(
   () => store.contests,
-  async (contests) => {
+  async (contests: Contest[]) => {
     const allUsers = await api.searchUsers('example.com')
     usersById.value = Object.fromEntries(allUsers.map((u) => [u.id, u]))
     for (const contest of contests) {
       judgesByContest.value[contest.id] = await api.listJudgeAssignments(contest.id)
+      for (const division of contest.divisions) {
+        for (const stage of division.stages) {
+          resultsByDivisionStage.value[resultsKey(division.id, stage)] = await api.getResults(division.id, stage)
+        }
+      }
     }
   },
   { deep: false },
@@ -60,10 +79,10 @@ function judgesByRole(assignments: JudgeAssignment[] | undefined, role: JudgeAss
 }
 
 async function createContest() {
-  if (!newName.value.trim()) return
+  if (!newName.value.trim() || !newYear.value) return
   creating.value = true
   try {
-    await store.createContest(newName.value.trim(), userId.value)
+    await store.createContest(newName.value.trim(), newYear.value, userId.value)
     newName.value = ''
   } finally {
     creating.value = false
@@ -78,6 +97,7 @@ async function createContest() {
     <h2>Create a contest</h2>
     <form class="row" @submit.prevent="createContest">
       <input v-model="newName" type="text" placeholder="Contest name" style="flex: 1" />
+      <input v-model.number="newYear" type="number" placeholder="Year" style="width: 100px" />
       <button class="primary" type="submit" :disabled="creating">Create</button>
     </form>
   </div>
@@ -86,7 +106,10 @@ async function createContest() {
 
   <div v-for="contest in store.contests" :key="contest.id" class="card">
     <div class="row" style="justify-content: space-between">
-      <h2>{{ contest.name }}</h2>
+      <div class="row">
+        <h2 style="margin: 0">{{ contest.name }}</h2>
+        <span class="badge-year">{{ contest.year }}</span>
+      </div>
       <div class="row">
         <RouterLink :to="{ name: 'contest-judges', params: { contestId: contest.id } }">
           <button>Judges</button>
@@ -105,7 +128,9 @@ async function createContest() {
           <th>Division</th>
           <th>Stages</th>
           <th>Players</th>
-          <th></th>
+          <th>Input Score</th>
+          <th>Result Detail</th>
+          <th>Top 3</th>
         </tr>
       </thead>
       <tbody>
@@ -118,25 +143,38 @@ async function createContest() {
           </td>
           <td>
             <RouterLink :to="{ name: 'division-players', params: { contestId: contest.id, divisionId: division.id } }">
-              Players
+              <button>Players</button>
             </RouterLink>
           </td>
           <td>
-            <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start">
+            <div style="display: flex; flex-direction: column; gap: 6px; align-items: stretch">
               <RouterLink
                 v-for="stage in orderedStages(division.stages)"
                 :key="stage"
                 :to="{ name: 'score-entry', params: { contestId: contest.id, divisionId: division.id, stage } }"
               >
-                Score ({{ stage }})
+                <button style="width: 100%">Input Score ({{ stage }})</button>
               </RouterLink>
+            </div>
+          </td>
+          <td>
+            <div style="display: flex; flex-direction: column; gap: 6px; align-items: stretch">
               <RouterLink
                 v-for="stage in orderedStages(division.stages)"
                 :key="stage + '-results'"
                 :to="{ name: 'results', params: { contestId: contest.id, divisionId: division.id, stage } }"
               >
-                Results ({{ stage }})
+                <button style="width: 100%">Result Detail ({{ stage }})</button>
               </RouterLink>
+            </div>
+          </td>
+          <td>
+            <div v-for="stage in orderedStages(division.stages)" :key="stage + '-top3'" style="margin-bottom: 6px">
+              <div class="muted" style="font-size: 0.78rem">{{ stage }}</div>
+              <ol v-if="topThree(division.id, stage).length" style="margin: 0; padding-left: 16px">
+                <li v-for="r in topThree(division.id, stage)" :key="r.playerId">{{ r.name }}</li>
+              </ol>
+              <span v-else class="muted">—</span>
             </div>
           </td>
         </tr>

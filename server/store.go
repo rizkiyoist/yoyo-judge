@@ -35,6 +35,7 @@ type divisionRecord struct {
 type contestRecord struct {
 	ID          string
 	Name        string
+	Year        int
 	OwnerUserID string
 	Divisions   []*divisionRecord
 }
@@ -44,7 +45,7 @@ func (c *contestRecord) toContest() Contest {
 	for i, d := range c.Divisions {
 		divisions[i] = d.Division
 	}
-	return Contest{ID: c.ID, Name: c.Name, OwnerUserID: c.OwnerUserID, Divisions: divisions}
+	return Contest{ID: c.ID, Name: c.Name, Year: c.Year, OwnerUserID: c.OwnerUserID, Divisions: divisions}
 }
 
 // Store is an in-memory, mutex-protected backing store for the ScoringApi.
@@ -174,7 +175,7 @@ func (s *Store) seed() {
 	}
 
 	s.contests = []*contestRecord{{
-		ID: contestID, Name: "Indonesia National Yoyo Championships", OwnerUserID: headJudge.ID,
+		ID: contestID, Name: "Indonesia National Yoyo Championships", Year: 2026, OwnerUserID: headJudge.ID,
 		Divisions: []*divisionRecord{division},
 	}}
 }

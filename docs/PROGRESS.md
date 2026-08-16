@@ -1,6 +1,6 @@
 # Progress Summary
 
-_Last updated: 2026-08-16 (real backend added)_
+_Last updated: 2026-08-16 (contest year field + list-page polish)_
 
 ## Goal
 

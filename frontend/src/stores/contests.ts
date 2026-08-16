@@ -16,8 +16,8 @@ export const useContestStore = defineStore('contests', () => {
     }
   }
 
-  async function createContest(name: string, ownerUserId: string): Promise<Contest> {
-    const contest = await api.createContest(name, ownerUserId)
+  async function createContest(name: string, year: number, ownerUserId: string): Promise<Contest> {
+    const contest = await api.createContest(name, year, ownerUserId)
     contests.value = [contest, ...contests.value]
     return contest
   }

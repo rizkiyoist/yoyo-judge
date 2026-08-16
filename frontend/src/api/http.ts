@@ -86,8 +86,8 @@ export function createHttpApi(): ScoringApi {
       }
     },
 
-    async createContest(name, _ownerUserId) {
-      return request<Contest>('/contests', { method: 'POST', body: JSON.stringify({ name }) })
+    async createContest(name, year, _ownerUserId) {
+      return request<Contest>('/contests', { method: 'POST', body: JSON.stringify({ name, year }) })
     },
 
     async addDivision(contestId, name, stages: ScoringStage[]) {

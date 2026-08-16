@@ -159,13 +159,14 @@ func (s *Store) handleCreateContest(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r)
 	var body struct {
 		Name string `json:"name"`
+		Year int    `json:"year"`
 	}
 	if !readJSON(r, &body) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
 	s.mu.Lock()
-	contest := &contestRecord{ID: newID("c"), Name: body.Name, OwnerUserID: user.ID}
+	contest := &contestRecord{ID: newID("c"), Name: body.Name, Year: body.Year, OwnerUserID: user.ID}
 	s.contests = append(s.contests, contest)
 	s.mu.Unlock()
 	writeJSON(w, http.StatusCreated, contest.toContest())

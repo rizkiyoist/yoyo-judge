@@ -24,6 +24,7 @@ interface DbDivision extends Division {
 interface DbContest {
   id: string
   name: string
+  year: number
   ownerUserId: string
   divisions: DbDivision[]
 }
@@ -167,6 +168,7 @@ function seedDb(): Db {
   const contest: DbContest = {
     id: contestId,
     name: 'Indonesia National Yoyo Championships',
+    year: 2026,
     ownerUserId: headJudge.id,
     divisions: [division],
   }
@@ -198,6 +200,7 @@ function toContest(dc: DbContest): Contest {
   return {
     id: dc.id,
     name: dc.name,
+    year: dc.year,
     ownerUserId: dc.ownerUserId,
     divisions: dc.divisions.map((d) => ({
       id: d.id,
@@ -293,8 +296,8 @@ export function createMockApi(): ScoringApi {
       return delay(contest ? toContest(contest) : null)
     },
 
-    async createContest(name, ownerUserId) {
-      const contest: DbContest = { id: uid('c'), name, ownerUserId, divisions: [] }
+    async createContest(name, year, ownerUserId) {
+      const contest: DbContest = { id: uid('c'), name, year, ownerUserId, divisions: [] }
       db.contests.push(contest)
       saveDb(db)
       return delay(toContest(contest))

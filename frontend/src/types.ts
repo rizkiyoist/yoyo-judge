@@ -23,6 +23,7 @@ export interface Division {
 export interface Contest {
   id: string
   name: string
+  year: number
   ownerUserId: string
   divisions: Division[]
 }

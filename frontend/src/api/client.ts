@@ -25,7 +25,7 @@ export interface ScoringApi {
   // Contests
   listContests(userId: string): Promise<Contest[]>
   getContest(contestId: string): Promise<Contest | null>
-  createContest(name: string, ownerUserId: string): Promise<Contest>
+  createContest(name: string, year: number, ownerUserId: string): Promise<Contest>
   addDivision(contestId: string, name: string, stages: ScoringStage[]): Promise<Division>
   updateDivisionStages(contestId: string, divisionId: string, stages: ScoringStage[]): Promise<Division>
 

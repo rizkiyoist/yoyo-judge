@@ -31,6 +31,7 @@ type Division struct {
 type Contest struct {
 	ID          string     `json:"id"`
 	Name        string     `json:"name"`
+	Year        int        `json:"year"`
 	OwnerUserID string     `json:"ownerUserId"`
 	Divisions   []Division `json:"divisions"`
 }
