@@ -1,5 +1,7 @@
 *lock.*
+!package-lock.json
 /yoyo-judge*
 dbconfig.yml
 env.json
 /tmp
+/bin

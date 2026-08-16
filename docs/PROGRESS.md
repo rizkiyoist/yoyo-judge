@@ -1,6 +1,6 @@
 # Progress Summary
 
-_Last updated: 2026-08-16_
+_Last updated: 2026-08-16 (frontend added)_
 
 ## Goal
 
@@ -130,6 +130,65 @@ over HTTP.
   creating `users` and `user_socials` tables, including the FK and unique
   constraints for one social account per user per provider.
 
+### Vue frontend (`frontend/`) — new
+
+A Vue 3 + Vite + Pinia + TypeScript SPA, built against a **mocked API**
+(no real Go HTTP backend exists yet — see "What's not implemented" below).
+Full plan/rationale: see the design in this conversation; summary here for
+future reference.
+
+- **Workflow modeled**: a head judge logs in, creates a contest, adds
+  divisions (each markable Prelim/Final/both), invites other judges
+  (searchable by name/email) into clicker (J-A1-6) or evaluator (J-B1-6)
+  slots per division+stage, manages the player roster; invited judges log
+  in, enter their own scores, and can view the full results — including
+  every other judge's raw input, not just the computed total.
+- `src/lib/scoring.ts` (+ `scoring.test.ts`) — a 1:1 TypeScript port of
+  `library/calc/stage.go` + `rules.go`, tested against the exact same
+  expected values as `library/calc/rules_test.go`, via Vitest
+  (`npm run test` in `frontend/`). This keeps the client-side results
+  computation provably in sync with the Go engine.
+- `src/types.ts` — shared domain types (`User`, `Contest`, `Division`,
+  `JudgeAssignment`, `Player`, `PlayerRawScores`, `PlayerResult`) — the
+  contract a real backend should eventually satisfy.
+- `src/api/client.ts` — the `ScoringApi` interface (login, contests,
+  divisions, judge invites, players, score submission, results). This is
+  the seam: swapping in a real HTTP client later means implementing this
+  one interface, no view changes needed.
+- `src/api/mock.ts` — in-memory + `localStorage`-backed implementation,
+  seeded with a demo contest ("WYYC Demo Contest", division "3A", both
+  stages, 1 head judge + 6 clicker + 6 eval seeded users, 4 players, and
+  pre-filled FINAL-stage scores). `login()` just matches by email (no real
+  auth). `getResults()` builds a `calc.Contest`-shaped object from stored
+  raw inputs and runs it through `lib/scoring.ts`, so results are genuinely
+  computed, not fake numbers. **Note:** the seed pre-authenticates a
+  browser as the head judge by default (`sessionUserId` set at seed time),
+  so a fresh session lands on the contest list, not `/login`, until you log
+  out — intentional for demo convenience, worth revisiting for a real login.
+- `src/stores/auth.ts`, `src/stores/contests.ts` — Pinia stores for the
+  cross-cutting concerns (current user/session, the contest list); other
+  views call the API directly for view-scoped data (players, assignments,
+  raw scores, results).
+- `src/router/index.ts` — routes for login, contest list, contest/division
+  editing, judge management, player roster, score entry, and results, with
+  an auth guard redirecting to `/login` when logged out.
+- `src/views/*.vue` — one view per route; role gating (head-judge-only
+  actions, judge-assignment-only score entry) is enforced client-side only,
+  matching the mock's lack of real auth.
+- Verified by hand with a throwaway Playwright driver (not committed):
+  login → contest list → results leaderboard (computed, ranks correctly
+  reflect seeded deductions) → judge management (invite/list/remove) →
+  score entry as an invited clicker judge (edit persists to `localStorage`
+  and round-trips through the UI). No console errors observed.
+- `build.ps1` (repo root) — builds both the Go backend (`bin/yoyo-judge.exe`)
+  and the frontend (`frontend/dist`) in one step; `-Only backend` /
+  `-Only frontend` to build just one.
+
+Not yet done: no real backend for this to talk to; no real
+authentication; contest/division/assignment data lives only in the
+browser's `localStorage`, per-browser, not shared between judges' devices
+in real life (that requires the real API).
+
 ## What's not implemented yet
 
 - No HTTP handlers/routes for any of: setting up a contest, entering
@@ -146,21 +205,29 @@ over HTTP.
   `library/reader`, `library/calc/const.go`) is superseded but still in the
   tree — worth deleting once nothing needs it, along with the working-copy
   `IYYF-SCORE-CALC-FINAL-2017.xlsx`/`.xlsxbak` files at the repo root.
-- Only the new `library/calc` package has tests; nothing else in the repo
-  does.
+- Only `library/calc` (Go) and `frontend/src/lib/scoring.ts` (TS) have
+  tests; nothing else in the repo does.
+- The frontend has no real backend to talk to — `frontend/src/api/mock.ts`
+  is the only implementation of `ScoringApi`, so nothing persists beyond
+  one browser's `localStorage`.
 
 ## Suggested next steps
 
-1. Map `handler/input.go` structs (or a request-layer equivalent) → 
-   `calc.PlayerInput`/`calc.Contest`, so incoming judge/setup data has a
-   clear path into the scoring engine.
-2. Add HTTP handlers/routes in `router.go` for the setup → player → scoring
-   → results flow, replacing the commented-out placeholder.
-3. Decide on persistence: do contests/players/raw scores get stored in MySQL
-   (via the existing generic `Repository[T]`), with `calc.Calculate()` run
-   on demand or on write?
-4. Once the native engine is trusted end-to-end, remove the superseded
+1. Design and build the real Go HTTP API matching `frontend/src/api/client.ts`'s
+   `ScoringApi` contract (users/auth, contests, divisions, judge
+   assignments, players, score submission, results) — the frontend's mock
+   layer already documents the exact shape needed.
+2. Map that API's handlers → `calc.PlayerInput`/`calc.Contest` so incoming
+   judge/setup data has a clear path into the scoring engine, reusing
+   `handler/input.go`'s structs where they fit.
+3. Decide on persistence: contests/divisions/judge assignments/players/raw
+   scores stored in MySQL (via the existing generic `Repository[T]`), with
+   `calc.Calculate()` run on demand or on write.
+4. Replace `frontend/src/api/mock.ts` with a real HTTP-backed
+   implementation of `ScoringApi` once the Go API exists — no other
+   frontend code should need to change.
+5. Flesh out real authentication (`controller/auth`'s Google login stub, or
+   similar) — the frontend's mocked email-only login is a stand-in.
+6. Once the native calc engine is trusted end-to-end, remove the superseded
    `library/writer`/`library/reader`/`library/calc/const.go` code and the
    root-level `.xlsx`/`.xlsxbak` working copies.
-5. Flesh out `controller/auth` (Google login) if user accounts are needed
-   before scoring features.
