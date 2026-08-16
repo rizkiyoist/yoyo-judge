@@ -94,8 +94,10 @@ function toggle(playerId: string) {
             <th>Place</th>
             <th>#</th>
             <th>Player</th>
-            <th>TE</th>
-            <th v-for="cat in categories" :key="cat.name">{{ categoryLabels[cat.name] ?? cat.name }}</th>
+            <th class="col-tex">TE</th>
+            <th v-for="cat in categories" :key="cat.name" :class="cat.group === 'TEv' ? 'col-tex' : 'col-pev'">
+              {{ categoryLabels[cat.name] ?? cat.name }}
+            </th>
             <th>Categories Total</th>
             <th>E.Total</th>
             <th>Stop</th>
@@ -111,8 +113,10 @@ function toggle(playerId: string) {
               <td :class="'place-' + r.place">{{ r.place }}</td>
               <td>{{ players.find((p) => p.id === r.playerId)?.number }}</td>
               <td>{{ r.name }}</td>
-              <td>{{ r.technicalExecution.toFixed(2) }}</td>
-              <td v-for="cat in categories" :key="cat.name">{{ (r.categoryScores[cat.name] ?? 0).toFixed(2) }}</td>
+              <td class="col-tex">{{ r.technicalExecution.toFixed(2) }}</td>
+              <td v-for="cat in categories" :key="cat.name" :class="cat.group === 'TEv' ? 'col-tex' : 'col-pev'">
+                {{ (r.categoryScores[cat.name] ?? 0).toFixed(2) }}
+              </td>
               <td>{{ categoriesTotal(r).toFixed(2) }}</td>
               <td>{{ r.evaluationTotal.toFixed(2) }}</td>
               <td>-{{ (r.deductionTotals.Stop ?? 0).toFixed(2) }}</td>

@@ -75,11 +75,11 @@ func emptyRawScores(playerID string) PlayerRawScores {
 // clickerJudgeNames and evalJudgeNames mirror
 // frontend/src/api/mock.ts's CLICKER_JUDGE_NAMES/EVAL_JUDGE_NAMES.
 var clickerJudgeNames = [6][2]string{
-	{"Agus", "Setiawan"}, {"Bambang", "Wijaya"}, {"Candra", "Saputra"},
+	{"Paketu", "Dennis"}, {"Levian", "Saputra"}, {"Boris", "Chietra"},
 	{"Doni", "Firmansyah"}, {"Eko", "Prasetyo"}, {"Fajar", "Nugroho"},
 }
 var evalJudgeNames = [6][2]string{
-	{"Gita", "Lestari"}, {"Hendra", "Gunawan"}, {"Indah", "Puspitasari"},
+	{"Reynold", "Andika"}, {"Hendra", "Kusumah"}, {"Indah", "Puspitasari"},
 	{"Joko", "Susanto"}, {"Kartika", "Dewi"}, {"Lestari", "Wulandari"},
 }
 
@@ -103,6 +103,12 @@ func (s *Store) seed() {
 		{ID: newID("p"), Number: 2, Name: "Jane Smith"},
 		{ID: newID("p"), Number: 3, Name: "Budi Santoso"},
 		{ID: newID("p"), Number: 4, Name: "Mei Lin"},
+		{ID: newID("p"), Number: 5, Name: "Wira Kusuma"},
+		{ID: newID("p"), Number: 6, Name: "Siti Aminah"},
+		{ID: newID("p"), Number: 7, Name: "Chen Wei"},
+		{ID: newID("p"), Number: 8, Name: "Aiko Tanaka"},
+		{ID: newID("p"), Number: 9, Name: "Diego Santos"},
+		{ID: newID("p"), Number: 10, Name: "Maria Garcia"},
 	}
 	divisionID := newID("d")
 	for i := range players {
@@ -131,6 +137,12 @@ func (s *Store) seed() {
 		{55, 53, 54, 45, 50, 55},
 		{40, 41, 39, 35, 38, 42},
 		{58, 57, 59, 50, 56, 58},
+		{45, 44, 46, 42, 43, 45},
+		{62, 61, 63, 60, 62, 64},
+		{38, 37, 39, 36, 38, 40},
+		{51, 50, 52, 49, 50, 53},
+		{47, 46, 48, 45, 47, 49},
+		{55, 54, 56, 53, 55, 57},
 	}
 	finalScores := make([]PlayerRawScores, len(players))
 	for i, p := range players {

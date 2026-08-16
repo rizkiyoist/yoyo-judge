@@ -79,6 +79,10 @@ function userLabel(userId: string): string {
   return u ? `${u.firstName} ${u.lastName} (${u.email})` : userId
 }
 
+function isHeadJudge(userId: string): boolean {
+  return userId === contest.value?.ownerUserId
+}
+
 const assignmentsForSelection = computed(() =>
   assignments.value.filter((a) => a.divisionId === selectedDivisionId.value && a.stage === selectedStage.value),
 )
@@ -162,7 +166,10 @@ const evalAssignments = computed(() =>
             <tbody>
               <tr v-for="a in clickerAssignments" :key="a.id">
                 <td>{{ a.slot }}</td>
-                <td>{{ userLabel(a.userId) }}</td>
+                <td>
+                  <strong v-if="isHeadJudge(a.userId)">{{ userLabel(a.userId) }}</strong>
+                  <template v-else>{{ userLabel(a.userId) }}</template>
+                </td>
                 <td v-if="isOwner"><button class="danger" @click="remove(a)">Remove</button></td>
               </tr>
             </tbody>
@@ -183,7 +190,10 @@ const evalAssignments = computed(() =>
             <tbody>
               <tr v-for="a in evalAssignments" :key="a.id">
                 <td>{{ a.slot }}</td>
-                <td>{{ userLabel(a.userId) }}</td>
+                <td>
+                  <strong v-if="isHeadJudge(a.userId)">{{ userLabel(a.userId) }}</strong>
+                  <template v-else>{{ userLabel(a.userId) }}</template>
+                </td>
                 <td v-if="isOwner"><button class="danger" @click="remove(a)">Remove</button></td>
               </tr>
             </tbody>

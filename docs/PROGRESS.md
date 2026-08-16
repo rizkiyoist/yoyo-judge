@@ -1,6 +1,6 @@
 # Progress Summary
 
-_Last updated: 2026-08-16 (separate override page, xls-style results table)_
+_Last updated: 2026-08-16 (download results, seed data expanded, visual polish)_
 
 ## Goal
 
@@ -206,12 +206,20 @@ HTTP layer.
 - `server/store.go` — nested contests → divisions → players/assignments/scores,
   seeded with the **identical demo data** as `frontend/src/api/mock.ts`
   (head judge Galih Kurniawan, `galih@example.com`; 6 clicker + 6 eval
-  judges with real Indonesian names, e.g. `agus.a1@example.com` .. 
-  `lestari.b6@example.com`; contest "Indonesia National Yoyo
-  Championships", division "3A", both stages, 4 players, FINAL-stage
-  scores pre-filled) — the same login flow already verified against the
-  mock works unchanged. `toPlayerInput` converts stored raw scores into
-  `calc.PlayerInput`.
+  judges — names kept in sync between the two seed files by hand, e.g.
+  clicker slots 1-3 are Paketu Dennis/Levian Saputra/Boris Chietra, eval
+  slots 1-2 are Reynold Andika/Hendra Kusumah; contest "Indonesia National
+  Yoyo Championships" (year 2026), division "3A", both stages, **10
+  players**, FINAL-stage scores pre-filled) — the same login flow already
+  verified against the mock works unchanged. `toPlayerInput` converts
+  stored raw scores into `calc.PlayerInput`. **Keep the two seed files'
+  judge-name arrays and player lists in sync by hand** — nothing enforces
+  this automatically.
+- `Contest.Year` (int) added end-to-end: Go `server/types.go`/`store.go`/
+  `handlers.go`, frontend `types.ts`, `api/client.ts`/`mock.ts`/`http.ts`,
+  `stores/contests.ts`. Surfaced as a year input next to the contest-name
+  field on the "Create a contest" form and a colored `.badge-year` pill
+  next to the contest name everywhere it's shown.
 - `server/auth.go` — bearer auth: `POST /api/auth/login` returns the user's
   id as an opaque token; protected routes require `Authorization: Bearer
   <userId>`. No passwords — matches the mock's security level, a known gap.
@@ -248,6 +256,47 @@ HTTP layer.
   names; currently unused since `main.go` doesn't call `InitSQL` anymore,
   but ready for when real DB persistence is wired back in.
 
+### Frontend UX polish — new, 2026-08-16
+
+- **Head-judge score override** moved to its own route/view
+  (`ScoreOverrideView.vue`, `/.../override`), reached via a button on the
+  normal scoring page (`ScoreEntryView.vue`). Regular scoring now only ever
+  shows the logged-in judge's own assigned slot(s) — no inline override
+  controls. The override page lets the head judge pick any clicker/eval
+  judge from a dropdown and edit their raw scores directly.
+- **Results table** (`ResultsView.vue`) restructured to mirror the xls
+  workbook's RESULT sheet columns (TE, then each raw category under its
+  descriptive label, Categories Total, E.Total, Stop/Discard/Cut-or-Detach,
+  Final Score, Details), with the TE/T.Ev columns colored blue
+  (`.col-tex`) and the P.Ev columns colored amber (`.col-pev`) via CSS
+  custom properties so they adapt to the light/dark theme — a quick visual
+  split between "technical" and "performance" scoring. Final Score stays
+  bold. `.card` now has `overflow-x: auto` so wide tables scroll inside
+  their card instead of visually overflowing/clipping its border.
+- **Contest list** (`ContestListView.vue`): "Contests" → "All Contests";
+  Players/Input Score/Result Detail column buttons now just say the stage
+  name ("Prelim"/"Final") since the column header already says what they
+  are; Input Score and Result Detail are separate columns; Top 3 column
+  shows only the FINAL stage's leaderboard (prelim only as a fallback for
+  divisions with no final stage); judge lists split into Clicker (TEx) /
+  Evaluation (PEv) columns, bolding the head judge's name if they also
+  appear as an assigned judge; new **"Download Results"** button builds a
+  self-contained HTML file (via `Blob` + a temporary `<a download>`) with
+  the FINAL-stage results table for every division in the contest and
+  triggers a browser download — no server round-trip beyond fetching each
+  division's results.
+- **Judge management** (`JudgeManagementView.vue`): "Current assignments"
+  has Prelim/Final tabs (shared state with the invite form, so an invite
+  lands on whichever tab is active) and splits Clicker/Evaluation judges
+  into two side-by-side tables instead of one combined table with a Role
+  column; head judge's name bolded there too if assigned as a judge.
+- Removed the 🪀 emoji from the nav bar brand (just "yoyo-judge" now).
+- Fixed a spacing bug on the contest list: the per-division table sat
+  flush against the contest name/year/buttons row because the `<h2>` had
+  `margin: 0` (needed so the year badge could sit inline with it) with
+  nothing replacing the lost margin — added `margin-bottom` back on the
+  wrapping row.
+
 Not yet done: no real persistence (everything resets on backend restart);
 no real authentication; `handler/input.go`'s structs and the `users`/
 `user_socials` GORM models aren't connected to any of this yet.
@@ -273,11 +322,21 @@ no real authentication; `handler/input.go`'s structs and the `users`/
 
 ## Suggested next steps
 
-1. Decide on real persistence: contests/divisions/judge assignments/players/
-   raw scores stored in MySQL (the generic `Repository[T]` in
-   `domain/service/generic.go` is already there for this), replacing
-   `server/store.go`'s in-memory maps — the HTTP handler layer shouldn't
-   need to change.
+1. **TODO, deliberately deferred:** decide on real persistence. Candidate:
+   **SQLite** instead of MySQL — `sql-migrate` (already used for
+   `migration/`) supports a `sqlite3` dialect natively, so the existing
+   migration tooling carries over; the two current migrations (`users`,
+   `user_socials`) would need their MySQL-specific syntax (`ENUM`,
+   `AUTO_INCREMENT`, `ON UPDATE CURRENT_TIMESTAMP`) rewritten for SQLite,
+   and new migrations added for contests/divisions/judge
+   assignments/players/raw scores (none of which exist as tables yet
+   regardless of which DB is chosen). `config/sql.go` would need a
+   `gorm.io/driver/sqlite` code path alongside the MySQL one. The generic
+   `Repository[T]` in `domain/service/generic.go` is already there to build
+   on. Holding off on this until after getting real users testing the
+   in-memory-backed site, per user's call — revisit once that feedback is
+   in. Replacing `server/store.go`'s in-memory maps with real queries
+   shouldn't require changing the HTTP handler layer's shape.
 2. Flesh out real authentication (replacing both the Google login stub and
    `server/auth.go`'s trivial bearer scheme) — sessions/JWTs plus actual
    credential verification.

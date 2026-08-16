@@ -15,7 +15,7 @@ async function handleLogout() {
 
 <template>
   <nav class="app-nav">
-    <RouterLink class="brand" :to="{ name: 'contests' }">🪀 yoyo-judge</RouterLink>
+    <RouterLink class="brand" :to="{ name: 'contests' }">yoyo-judge</RouterLink>
     <div class="user">
       <button :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'" @click="toggleTheme">
         {{ theme === 'dark' ? '☀️' : '🌙' }}

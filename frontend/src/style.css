@@ -15,6 +15,13 @@
   color-scheme: light;
 }
 
+:root {
+  --tex-color: #1d4ed8;
+  --tex-bg: rgba(29, 78, 216, 0.08);
+  --pev-color: #b45309;
+  --pev-bg: rgba(180, 83, 9, 0.08);
+}
+
 :root[data-theme='dark'] {
   --text: #e5e2ea;
   --text-muted: #a39cb0;
@@ -25,6 +32,10 @@
   --accent-contrast: #1c1b22;
   --danger: #f08a75;
   --success: #4ade80;
+  --tex-color: #93c5fd;
+  --tex-bg: rgba(147, 197, 253, 0.12);
+  --pev-color: #fcd34d;
+  --pev-bg: rgba(252, 211, 77, 0.12);
   color-scheme: dark;
 }
 
@@ -139,6 +150,7 @@ th {
   padding: 20px;
   margin-bottom: 20px;
   background: var(--bg);
+  overflow-x: auto;
 }
 
 .field {
@@ -193,3 +205,15 @@ th {
 .place-1 { color: #b8860b; font-weight: 700; }
 .place-2 { color: #708090; font-weight: 700; }
 .place-3 { color: #a0522d; font-weight: 700; }
+
+/* Technical execution/evaluation vs performance evaluation columns in the
+   results table — distinct colors so the two scoring groups are easy to
+   tell apart at a glance. */
+.col-tex {
+  color: var(--tex-color);
+  background: var(--tex-bg);
+}
+.col-pev {
+  color: var(--pev-color);
+  background: var(--pev-bg);
+}

@@ -1,9 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
+import { finalCategories } from '../lib/scoring'
 import { useAuthStore } from '../stores/auth'
 import { useContestStore } from '../stores/contests'
-import type { Contest, JudgeAssignment, PlayerResult, ScoringStage, User } from '../types'
+import type { Contest, Division, JudgeAssignment, PlayerResult, ScoringStage, User } from '../types'
+
+const FINAL_CATEGORY_LABELS: Record<string, string> = {
+  EXE: 'Execution',
+  CTL: 'Control',
+  TDV: 'Trick Diversity',
+  SEM: 'Space Use/Emp.',
+  MU1: 'Choreography',
+  MU2: 'Construction',
+  BDY: 'Body Control',
+  SHW: 'Showmanship',
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+}
 
 const STAGE_ORDER: ScoringStage[] = ['prelim', 'final']
 
@@ -90,6 +106,97 @@ function judgesByRole(assignments: JudgeAssignment[] | undefined, role: JudgeAss
     .sort((a, b) => a.slot - b.slot)
 }
 
+const downloading = ref<Record<string, boolean>>({})
+
+function divisionResultsTable(division: Division, results: PlayerResult[]): string {
+  const categories = finalCategories()
+  const categoryHeaders = categories.map((c) => `<th>${escapeHtml(FINAL_CATEGORY_LABELS[c.name] ?? c.name)}</th>`).join('')
+  const rows = [...results]
+    .sort((a, b) => a.place - b.place)
+    .map((r) => {
+      const categoryCells = categories
+        .map((c) => `<td>${(r.categoryScores[c.name] ?? 0).toFixed(2)}</td>`)
+        .join('')
+      const categoriesTotal = (r.groupTotals.TEv ?? 0) + (r.groupTotals.PEv ?? 0)
+      const thirdDeduction = r.deductionTotals.Cut ?? r.deductionTotals.Detach ?? 0
+      return `<tr>
+        <td>${r.place}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${r.technicalExecution.toFixed(2)}</td>
+        ${categoryCells}
+        <td>${categoriesTotal.toFixed(2)}</td>
+        <td>${r.evaluationTotal.toFixed(2)}</td>
+        <td>-${(r.deductionTotals.Stop ?? 0).toFixed(2)}</td>
+        <td>-${(r.deductionTotals.Discard ?? 0).toFixed(2)}</td>
+        <td>-${thirdDeduction.toFixed(2)}</td>
+        <td><strong>${r.finalScore.toFixed(2)}</strong></td>
+      </tr>`
+    })
+    .join('\n')
+
+  return `<h2>${escapeHtml(division.name)}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Place</th><th>Player</th><th>TE</th>${categoryHeaders}
+        <th>Categories Total</th><th>E.Total</th><th>Stop</th><th>Discard</th><th>Cut</th><th>Final Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || '<tr><td colspan="11">No results yet.</td></tr>'}
+    </tbody>
+  </table>`
+}
+
+function triggerHtmlDownload(filename: string, html: string) {
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+async function downloadContestResults(contest: Contest) {
+  downloading.value[contest.id] = true
+  try {
+    const finalDivisions = contest.divisions.filter((d) => d.stages.includes('final'))
+    const sections = await Promise.all(
+      finalDivisions.map(async (division) => {
+        const results = await api.getResults(division.id, 'final')
+        return divisionResultsTable(division, results)
+      }),
+    )
+    const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(contest.name)} — Final Results</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; padding: 24px; color: #2b2b33; }
+  h1 { margin-bottom: 4px; }
+  h2 { margin-top: 32px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  th, td { border: 1px solid #e0dee4; padding: 6px 10px; text-align: left; font-size: 13px; }
+  th { background: #f6f5f9; }
+</style>
+</head>
+<body>
+<h1>${escapeHtml(contest.name)} (${contest.year})</h1>
+<p>Final results — all divisions</p>
+${sections.join('\n') || '<p>No divisions with a final stage.</p>'}
+</body>
+</html>`
+    const filename = `${contest.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-final-results.html`
+    triggerHtmlDownload(filename, html)
+  } finally {
+    downloading.value[contest.id] = false
+  }
+}
+
 async function createContest() {
   if (!newName.value.trim() || !newYear.value) return
   creating.value = true
@@ -117,7 +224,7 @@ async function createContest() {
   <p v-if="store.loading" class="muted">Loading…</p>
 
   <div v-for="contest in store.contests" :key="contest.id" class="card">
-    <div class="row" style="justify-content: space-between">
+    <div class="row" style="justify-content: space-between; margin-bottom: 16px">
       <div class="row">
         <h2 style="margin: 0">{{ contest.name }}</h2>
         <span class="badge-year">{{ contest.year }}</span>
@@ -129,6 +236,9 @@ async function createContest() {
         <RouterLink :to="{ name: 'contest-edit', params: { contestId: contest.id } }">
           <button>Divisions</button>
         </RouterLink>
+        <button :disabled="downloading[contest.id]" @click="downloadContestResults(contest)">
+          {{ downloading[contest.id] ? 'Preparing…' : 'Download Results' }}
+        </button>
       </div>
     </div>
 
@@ -205,7 +315,9 @@ async function createContest() {
         <p v-if="!judgesByRole(judgesByContest[contest.id], 'clicker').length" class="muted">None assigned.</p>
         <ul v-else style="margin: 0; padding-left: 18px">
           <li v-for="a in judgesByRole(judgesByContest[contest.id], 'clicker')" :key="a.id">
-            #{{ a.slot }} — {{ judgeName(a.userId) }}
+            #{{ a.slot }} —
+            <strong v-if="a.userId === contest.ownerUserId">{{ judgeName(a.userId) }}</strong>
+            <template v-else>{{ judgeName(a.userId) }}</template>
           </li>
         </ul>
       </div>
@@ -214,7 +326,9 @@ async function createContest() {
         <p v-if="!judgesByRole(judgesByContest[contest.id], 'evaluator').length" class="muted">None assigned.</p>
         <ul v-else style="margin: 0; padding-left: 18px">
           <li v-for="a in judgesByRole(judgesByContest[contest.id], 'evaluator')" :key="a.id">
-            #{{ a.slot }} — {{ judgeName(a.userId) }}
+            #{{ a.slot }} —
+            <strong v-if="a.userId === contest.ownerUserId">{{ judgeName(a.userId) }}</strong>
+            <template v-else>{{ judgeName(a.userId) }}</template>
           </li>
         </ul>
       </div>

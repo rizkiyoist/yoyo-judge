@@ -54,16 +54,16 @@ function emptyRawScores(playerId: string): PlayerRawScores {
 }
 
 const CLICKER_JUDGE_NAMES: [string, string][] = [
-  ['Agus', 'Setiawan'],
-  ['Bambang', 'Wijaya'],
-  ['Candra', 'Saputra'],
+  ['Paketu', 'Dennis'],
+  ['Levian', 'Saputra'],
+  ['Boris', 'Chietra'],
   ['Doni', 'Firmansyah'],
   ['Eko', 'Prasetyo'],
   ['Fajar', 'Nugroho'],
 ]
 const EVAL_JUDGE_NAMES: [string, string][] = [
-  ['Gita', 'Lestari'],
-  ['Hendra', 'Gunawan'],
+  ['Reynold', 'Andika'],
+  ['Hendra', 'Kusumah'],
   ['Indah', 'Puspitasari'],
   ['Joko', 'Susanto'],
   ['Kartika', 'Dewi'],
@@ -91,6 +91,12 @@ function seedDb(): Db {
     { id: uid('p'), divisionId: '', number: 2, name: 'Jane Smith' },
     { id: uid('p'), divisionId: '', number: 3, name: 'Budi Santoso' },
     { id: uid('p'), divisionId: '', number: 4, name: 'Mei Lin' },
+    { id: uid('p'), divisionId: '', number: 5, name: 'Wira Kusuma' },
+    { id: uid('p'), divisionId: '', number: 6, name: 'Siti Aminah' },
+    { id: uid('p'), divisionId: '', number: 7, name: 'Chen Wei' },
+    { id: uid('p'), divisionId: '', number: 8, name: 'Aiko Tanaka' },
+    { id: uid('p'), divisionId: '', number: 9, name: 'Diego Santos' },
+    { id: uid('p'), divisionId: '', number: 10, name: 'Maria Garcia' },
   ]
 
   const divisionId = uid('d')
@@ -130,6 +136,12 @@ function seedDb(): Db {
     [55, 53, 54, 45, 50, 55],
     [40, 41, 39, 35, 38, 42],
     [58, 57, 59, 50, 56, 58],
+    [45, 44, 46, 42, 43, 45],
+    [62, 61, 63, 60, 62, 64],
+    [38, 37, 39, 36, 38, 40],
+    [51, 50, 52, 49, 50, 53],
+    [47, 46, 48, 45, 47, 49],
+    [55, 54, 56, 53, 55, 57],
   ]
   const finalScores: PlayerRawScores[] = players.map((p, i) => {
     const raw = emptyRawScores(p.id)
