@@ -11,6 +11,10 @@ function orderedStages(stages: ScoringStage[]): ScoringStage[] {
   return STAGE_ORDER.filter((s) => stages.includes(s))
 }
 
+function stageLabel(stage: ScoringStage): string {
+  return stage === 'prelim' ? 'Prelim' : 'Final'
+}
+
 const auth = useAuthStore()
 const store = useContestStore()
 const newName = ref('')
@@ -35,6 +39,14 @@ function topThree(divisionId: string, stage: ScoringStage): PlayerResult[] {
     .slice()
     .sort((a, b) => a.place - b.place)
     .slice(0, 3)
+}
+
+// Final is the definitive result; only fall back to prelim's top 3 when a
+// division has no final stage at all.
+function topThreeStage(stages: ScoringStage[]): ScoringStage | null {
+  if (stages.includes('final')) return 'final'
+  if (stages.includes('prelim')) return 'prelim'
+  return null
 }
 
 // Load each contest's judge assignments (to show "Judges: ...") and each
@@ -153,7 +165,7 @@ async function createContest() {
                 :key="stage"
                 :to="{ name: 'score-entry', params: { contestId: contest.id, divisionId: division.id, stage } }"
               >
-                <button style="width: 100%">Input Score ({{ stage }})</button>
+                <button style="width: 100%">{{ stageLabel(stage) }}</button>
               </RouterLink>
             </div>
           </td>
@@ -164,18 +176,24 @@ async function createContest() {
                 :key="stage + '-results'"
                 :to="{ name: 'results', params: { contestId: contest.id, divisionId: division.id, stage } }"
               >
-                <button style="width: 100%">Result Detail ({{ stage }})</button>
+                <button style="width: 100%">{{ stageLabel(stage) }}</button>
               </RouterLink>
             </div>
           </td>
           <td>
-            <div v-for="stage in orderedStages(division.stages)" :key="stage + '-top3'" style="margin-bottom: 6px">
-              <div class="muted" style="font-size: 0.78rem">{{ stage }}</div>
-              <ol v-if="topThree(division.id, stage).length" style="margin: 0; padding-left: 16px">
-                <li v-for="r in topThree(division.id, stage)" :key="r.playerId">{{ r.name }}</li>
+            <template v-if="topThreeStage(division.stages)">
+              <div class="muted" style="font-size: 0.78rem">{{ stageLabel(topThreeStage(division.stages)!) }}</div>
+              <ol
+                v-if="topThree(division.id, topThreeStage(division.stages)!).length"
+                style="margin: 0; padding-left: 16px"
+              >
+                <li v-for="r in topThree(division.id, topThreeStage(division.stages)!)" :key="r.playerId">
+                  {{ r.name }}
+                </li>
               </ol>
               <span v-else class="muted">—</span>
-            </div>
+            </template>
+            <span v-else class="muted">—</span>
           </td>
         </tr>
       </tbody>

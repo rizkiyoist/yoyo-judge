@@ -1,13 +1,11 @@
 what needs changing
 
-adding judges should be allowed even when no division is selected
-there is no back button so it's kinda confusing
-newly created contest should be on top
-adding players don't need to add number manually, just increment
-currently before picking division, stage selection is empty, but it should always have default value of all stage anyway
-role should just say Clicker Judge (Tex) and Evaluation Judge (Pev) in invite a judge
-after clicking a judge in the search judge, it currently stays listing the judge but should be closing the search
-in the list of contest, show list of judges if exists
-add a dark or light mode
-when inputting score, a head judge should be allowed to override any score from any judge (dropdown to pick judge), it should be in additional column only shown to the head judge
-update clickable input like players and score to look like a button, currently it's a bit shit
+override for head judge should be a separate button in a separate page, in normal scoring input even the judge still input what he is assigned to, only in this separate button and separate page does he is able to override
+
+result table should mimic the final result fields in xls, except have one more column for details which you already added so that one is good
+
+in input score, the button should just say prelim and final, also the result detail button, because it is already in the table header
+
+top 3 should only show final top 3, except if it's only prelim
+
+current assignments list should have a tab for moving between prelim and final list, and then inviting the judge should add to that corresponding tab

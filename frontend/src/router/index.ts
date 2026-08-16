@@ -45,6 +45,12 @@ const router = createRouter({
       component: () => import('../views/ResultsView.vue'),
       props: true,
     },
+    {
+      path: '/contests/:contestId/divisions/:divisionId/:stage(prelim|final)/override',
+      name: 'score-override',
+      component: () => import('../views/ScoreOverrideView.vue'),
+      props: true,
+    },
   ],
 })
 

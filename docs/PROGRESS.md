@@ -1,6 +1,6 @@
 # Progress Summary
 
-_Last updated: 2026-08-16 (contest year field + list-page polish)_
+_Last updated: 2026-08-16 (separate override page, xls-style results table)_
 
 ## Goal
 

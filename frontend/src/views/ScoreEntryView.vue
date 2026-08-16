@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { finalCategories, prelimCategories } from '../lib/scoring'
 import { useAuthStore } from '../stores/auth'
-import type { Contest, JudgeAssignment, Player, PlayerRawScores, ScoringStage, User } from '../types'
+import type { Contest, JudgeAssignment, Player, PlayerRawScores, ScoringStage } from '../types'
 
 const props = defineProps<{ contestId: string; divisionId: string; stage: ScoringStage }>()
 
@@ -12,50 +12,18 @@ const contest = ref<Contest | null>(null)
 const players = ref<Player[]>([])
 const assignments = ref<JudgeAssignment[]>([])
 const rawScores = ref<PlayerRawScores[]>([])
-const usersById = ref<Record<string, User>>({})
 const saving = ref<Record<string, boolean>>({})
 
 const division = computed(() => contest.value?.divisions.find((d) => d.id === props.divisionId))
 const isOwner = computed(() => contest.value?.ownerUserId === auth.user?.id)
 
-const stageAssignments = computed(() =>
-  assignments.value.filter((a) => a.divisionId === props.divisionId && a.stage === props.stage),
+const myAssignments = computed(() =>
+  assignments.value.filter(
+    (a) => a.divisionId === props.divisionId && a.stage === props.stage && a.userId === auth.user?.id,
+  ),
 )
-const clickerAssignments = computed(() =>
-  stageAssignments.value.filter((a) => a.role === 'clicker').sort((a, b) => a.slot - b.slot),
-)
-const evalAssignments = computed(() =>
-  stageAssignments.value.filter((a) => a.role === 'evaluator').sort((a, b) => a.slot - b.slot),
-)
-
-const myAssignments = computed(() => stageAssignments.value.filter((a) => a.userId === auth.user?.id))
 const myClickerAssignment = computed(() => myAssignments.value.find((a) => a.role === 'clicker'))
 const myEvalAssignment = computed(() => myAssignments.value.find((a) => a.role === 'evaluator'))
-
-// Head judge only: pick any judge from the dropdown to view/override their
-// scores. Defaults to the head judge's own slot if they happen to also be
-// assigned one.
-const overrideClickerUserId = ref('')
-const overrideEvalUserId = ref('')
-watch(clickerAssignments, (list) => {
-  if (!list.some((a) => a.userId === overrideClickerUserId.value)) {
-    overrideClickerUserId.value = myClickerAssignment.value?.userId ?? list[0]?.userId ?? ''
-  }
-})
-watch(evalAssignments, (list) => {
-  if (!list.some((a) => a.userId === overrideEvalUserId.value)) {
-    overrideEvalUserId.value = myEvalAssignment.value?.userId ?? list[0]?.userId ?? ''
-  }
-})
-
-const activeClickerAssignment = computed(() =>
-  isOwner.value
-    ? clickerAssignments.value.find((a) => a.userId === overrideClickerUserId.value)
-    : myClickerAssignment.value,
-)
-const activeEvalAssignment = computed(() =>
-  isOwner.value ? evalAssignments.value.find((a) => a.userId === overrideEvalUserId.value) : myEvalAssignment.value,
-)
 
 const categories = computed(() => (props.stage === 'prelim' ? prelimCategories() : finalCategories()))
 const thirdDeductionLabel = computed(() => (props.stage === 'prelim' ? 'Detach' : 'Cut'))
@@ -65,8 +33,6 @@ async function load() {
   players.value = await api.listPlayers(props.divisionId)
   assignments.value = await api.listJudgeAssignments(props.contestId)
   rawScores.value = await api.getRawScores(props.divisionId, props.stage)
-  const allUsers = await api.searchUsers('example.com')
-  usersById.value = Object.fromEntries(allUsers.map((u) => [u.id, u]))
 }
 
 onMounted(load)
@@ -75,14 +41,9 @@ function rawFor(playerId: string): PlayerRawScores | undefined {
   return rawScores.value.find((r) => r.playerId === playerId)
 }
 
-function judgeName(userId: string): string {
-  const u = usersById.value[userId]
-  return u ? `${u.firstName} ${u.lastName}` : userId
-}
-
 async function saveClicker(playerId: string, field: 'plus' | 'minus', value: number) {
-  if (!activeClickerAssignment.value) return
-  const slot = activeClickerAssignment.value.slot
+  if (!myClickerAssignment.value) return
+  const slot = myClickerAssignment.value.slot
   const existing = rawFor(playerId)?.clickers[slot] ?? { plus: 0, minus: 0 }
   const next = { ...existing, [field]: value }
   saving.value[playerId] = true
@@ -107,8 +68,8 @@ async function saveDeduction(playerId: string, field: 'stop' | 'discard' | 'cut'
 }
 
 async function saveEval(playerId: string, category: string, value: number) {
-  if (!activeEvalAssignment.value) return
-  const slot = activeEvalAssignment.value.slot
+  if (!myEvalAssignment.value) return
+  const slot = myEvalAssignment.value.slot
   const existing = rawFor(playerId)?.evals[slot] ?? {}
   const next = { ...existing, [category]: value }
   saving.value[playerId] = true
@@ -126,25 +87,18 @@ async function saveEval(playerId: string, category: string, value: number) {
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) scoring</h1>
 
-    <p v-if="!myAssignments.length && !isOwner" class="muted">
+    <p v-if="isOwner" class="row">
+      <RouterLink :to="{ name: 'score-override', params: { contestId, divisionId, stage } }">
+        <button>Head judge: override any judge's score</button>
+      </RouterLink>
+    </p>
+
+    <p v-if="!myAssignments.length" class="muted">
       You aren't assigned as a judge for this division/stage. Ask the head judge to invite you from the Judges page.
     </p>
 
-    <div v-if="activeClickerAssignment" class="card">
-      <div class="row" style="justify-content: space-between">
-        <h2 style="margin: 0">
-          Clicker judge — slot {{ activeClickerAssignment.slot }}
-          <span v-if="isOwner" class="muted">({{ judgeName(activeClickerAssignment.userId) }})</span>
-        </h2>
-        <div v-if="isOwner" class="field" style="margin: 0">
-          <label>Head judge override — acting as</label>
-          <select v-model="overrideClickerUserId">
-            <option v-for="a in clickerAssignments" :key="a.id" :value="a.userId">
-              #{{ a.slot }} — {{ judgeName(a.userId) }}
-            </option>
-          </select>
-        </div>
-      </div>
+    <div v-if="myClickerAssignment" class="card">
+      <h2>Clicker judge — slot {{ myClickerAssignment.slot }}</h2>
       <table>
         <thead>
           <tr>
@@ -164,14 +118,14 @@ async function saveEval(playerId: string, category: string, value: number) {
             <td>
               <input
                 type="number" min="0" style="width: 70px"
-                :value="rawFor(p.id)?.clickers[activeClickerAssignment.slot]?.plus ?? 0"
+                :value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.plus ?? 0"
                 @change="saveClicker(p.id, 'plus', +($event.target as HTMLInputElement).value)"
               />
             </td>
             <td>
               <input
                 type="number" min="0" style="width: 70px"
-                :value="rawFor(p.id)?.clickers[activeClickerAssignment.slot]?.minus ?? 0"
+                :value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.minus ?? 0"
                 @change="saveClicker(p.id, 'minus', +($event.target as HTMLInputElement).value)"
               />
             </td>
@@ -205,21 +159,8 @@ async function saveEval(playerId: string, category: string, value: number) {
       </p>
     </div>
 
-    <div v-if="activeEvalAssignment" class="card">
-      <div class="row" style="justify-content: space-between">
-        <h2 style="margin: 0">
-          Evaluation judge — slot {{ activeEvalAssignment.slot }}
-          <span v-if="isOwner" class="muted">({{ judgeName(activeEvalAssignment.userId) }})</span>
-        </h2>
-        <div v-if="isOwner" class="field" style="margin: 0">
-          <label>Head judge override — acting as</label>
-          <select v-model="overrideEvalUserId">
-            <option v-for="a in evalAssignments" :key="a.id" :value="a.userId">
-              #{{ a.slot }} — {{ judgeName(a.userId) }}
-            </option>
-          </select>
-        </div>
-      </div>
+    <div v-if="myEvalAssignment" class="card">
+      <h2>Evaluation judge — slot {{ myEvalAssignment.slot }}</h2>
       <table>
         <thead>
           <tr>
@@ -235,7 +176,7 @@ async function saveEval(playerId: string, category: string, value: number) {
             <td v-for="cat in categories" :key="cat.name">
               <input
                 type="number" min="0" :max="cat.maxValue" step="0.5" style="width: 70px"
-                :value="rawFor(p.id)?.evals[activeEvalAssignment.slot]?.[cat.name] ?? 0"
+                :value="rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? 0"
                 @change="saveEval(p.id, cat.name, +($event.target as HTMLInputElement).value)"
               />
             </td>
