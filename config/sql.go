@@ -15,10 +15,10 @@ import (
 
 func InitSQL(env Config, key string) (db *gorm.DB, err error) {
 	dbUser := env.GetString(key + ".user")
-	dbPass := env.GetString(key + ".pass")
+	dbPass := env.GetString(key + ".password")
 	dbHost := env.GetString(key + ".host")
 	dbPort := env.GetString(key + ".port")
-	dbName := env.GetString(key + ".name")
+	dbName := env.GetString(key + ".database")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbUser, dbPass, dbHost, dbPort, dbName)
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"yoyo-judge/config"
+	"yoyo-judge/server"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -26,8 +27,9 @@ type router struct {
 }
 
 type BuildRouterRequest struct {
-	DB  *gorm.DB
-	Cfg config.Config
+	DB    *gorm.DB
+	Cfg   config.Config
+	Store *server.Store
 }
 
 func NewRouter() Router {
@@ -43,13 +45,14 @@ func BuildRouter(br *BuildRouterRequest) {
 		w.Write([]byte("OK"))
 	})
 
-	// { // route group demo
-	// 	router.HandleFunc("/file-spaces", demo.NewHandler().ListFileSpaces).Methods("GET")
-	// }
+	server.Mount(router, br.Store)
 
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "https://app.mimo.id", "https://app-staging.mimo.id"}, // Allow frontend URL
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedOrigins: []string{
+			"http://localhost:3000", "https://app.mimo.id", "https://app-staging.mimo.id",
+			"http://localhost:5173", // Vite dev server default port
+		},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
 	}).Handler(router)

@@ -1,6 +1,6 @@
 # Progress Summary
 
-_Last updated: 2026-08-16 (frontend added)_
+_Last updated: 2026-08-16 (real backend added)_
 
 ## Goal
 
@@ -184,50 +184,102 @@ future reference.
   and the frontend (`frontend/dist`) in one step; `-Only backend` /
   `-Only frontend` to build just one.
 
-Not yet done: no real backend for this to talk to; no real
-authentication; contest/division/assignment data lives only in the
-browser's `localStorage`, per-browser, not shared between judges' devices
-in real life (that requires the real API).
+Superseded by the real backend below — the frontend now talks to it by
+default (`VITE_USE_MOCK=true` still selects the mock for offline work).
+
+### Go HTTP backend (`server/`) — new, 2026-08-16
+
+Implements `frontend/src/api/client.ts`'s `ScoringApi` contract for real,
+backed by an **in-memory, mutex-protected store** rather than MySQL/GORM —
+so the site is testable with zero setup (no MySQL/Docker required). Real
+persistence can replace just the store layer later without touching the
+HTTP layer.
+
+- `server/types.go` — `User`, `Contest`, `Division`, `JudgeAssignment`,
+  `Player`, `ClickerInput`, `MajorDeductions`, `PlayerRawScores`, mirroring
+  `frontend/src/types.ts` field-for-field (JSON tags in camelCase).
+  `PlayerResultResponse` wraps `library/calc.PlayerResult` with the
+  `playerId` the frontend expects, **without** re-implementing the scoring
+  math — unlike the frontend's necessary TS port, the Go backend calls
+  `library/calc` directly.
+- `server/store.go` — nested contests → divisions → players/assignments/scores,
+  seeded with the **identical demo data** as `frontend/src/api/mock.ts`
+  (same emails: `alice@example.com` head judge, `clicker.a1..a6@example.com`,
+  `eval.b1..b6@example.com`; contest "WYYC Demo Contest", division "3A",
+  both stages, 4 players, FINAL-stage scores pre-filled) — the same login
+  flow already verified against the mock works unchanged. `toPlayerInput`
+  converts stored raw scores into `calc.PlayerInput`.
+- `server/auth.go` — bearer auth: `POST /api/auth/login` returns the user's
+  id as an opaque token; protected routes require `Authorization: Bearer
+  <userId>`. No passwords — matches the mock's security level, a known gap.
+  `GET /api/users/search` is deliberately public (no auth) since the login
+  screen needs it before a session exists.
+- `server/handlers.go` — one handler per `ScoringApi` method under `/api`
+  (auth, contests, divisions, judges, players, scores, results); results
+  are computed live via `calc.NewContest(stage, inputs).Calculate()`.
+- Wired into the existing app: `router.go` mounts `server.Mount(router,
+  store)` and adds `http://localhost:5173` (Vite's dev port) to the CORS
+  allowlist; `main.go` no longer calls `config.InitSQL` — it constructs a
+  seeded `server.NewStore()` instead (DB wiring can come back once real
+  persistence is built).
+- `frontend/src/api/http.ts` — real `ScoringApi` implementation using
+  `fetch` against `VITE_API_BASE_URL` (default `http://localhost:5000/api`),
+  storing the login token in `localStorage`. `frontend/src/api/index.ts` now
+  defaults to this; `VITE_USE_MOCK=true` still selects `mock.ts`.
+- Verified: `curl` smoke tests (login, `/me`, list contests, get results)
+  confirmed against the identical numbers seen from the mock, and the full
+  browser flow (login → contest list → results leaderboard) re-verified
+  with a throwaway Playwright driver against the real backend — 0 console
+  errors.
+- **Bug found and fixed along the way:** `GET /users/search` was
+  originally gated behind the same auth middleware as everything else, but
+  the login screen calls it *before* a session exists (to list demo users
+  to pick from) — made it public to match `mock.ts`'s behavior.
+- **Unrelated pre-existing bug found and fixed:** `config/sql.go`'s
+  `InitSQL` read `key+".pass"` and `key+".name"`, but `env.json` uses
+  `"password"` and `"database"` — so `dbPass`/`dbName` were always empty,
+  producing a DSN with no password and no database name. This is why
+  `yoyo-judge.exe` failed to connect while `sql-migrate` (which reads
+  `dbconfig.yml`'s literal DSN string directly) worked fine with the "same"
+  config — they were never actually reading the same values. Fixed the key
+  names; currently unused since `main.go` doesn't call `InitSQL` anymore,
+  but ready for when real DB persistence is wired back in.
+
+Not yet done: no real persistence (everything resets on backend restart);
+no real authentication; `handler/input.go`'s structs and the `users`/
+`user_socials` GORM models aren't connected to any of this yet.
 
 ## What's not implemented yet
 
-- No HTTP handlers/routes for any of: setting up a contest, entering
-  players, entering judge scores, or reading back computed results.
-- No persistence for contests/players/scores — `library/calc` is pure
-  in-memory calculation; nothing maps its types to/from GORM models or the
-  database yet.
+- No persistence for contests/players/scores — `server/store.go` is
+  in-memory only; everything is lost on backend restart. Nothing maps to
+  the `users`/`user_socials` GORM models or MySQL yet.
 - `handler/input.go`'s structs (`SetUp`, `Player`, `RawTex`, `RawPev`) aren't
-  yet mapped to `calc.PlayerInput`/`calc.Contest`, and aren't connected to
-  `request/` or any controller/usecase layer.
+  mapped to `calc.PlayerInput`/`calc.Contest` or connected to `server/`,
+  `request/`, or any controller/usecase layer.
 - `OptionalSetUpPrelim` in `handler/input.go` is still an empty stub.
-- Google login (`controller/auth`) is a stub with a `TODO`.
+- Real authentication — both `controller/auth`'s Google login stub and
+  `server/auth.go`'s bearer-token-is-the-userid scheme are stand-ins, not
+  real auth.
 - The old excelize-based writer/reader path (`library/writer`,
   `library/reader`, `library/calc/const.go`) is superseded but still in the
   tree — worth deleting once nothing needs it, along with the working-copy
   `IYYF-SCORE-CALC-FINAL-2017.xlsx`/`.xlsxbak` files at the repo root.
 - Only `library/calc` (Go) and `frontend/src/lib/scoring.ts` (TS) have
-  tests; nothing else in the repo does.
-- The frontend has no real backend to talk to — `frontend/src/api/mock.ts`
-  is the only implementation of `ScoringApi`, so nothing persists beyond
-  one browser's `localStorage`.
+  tests; `server/` and the rest of the repo don't.
 
 ## Suggested next steps
 
-1. Design and build the real Go HTTP API matching `frontend/src/api/client.ts`'s
-   `ScoringApi` contract (users/auth, contests, divisions, judge
-   assignments, players, score submission, results) — the frontend's mock
-   layer already documents the exact shape needed.
-2. Map that API's handlers → `calc.PlayerInput`/`calc.Contest` so incoming
-   judge/setup data has a clear path into the scoring engine, reusing
-   `handler/input.go`'s structs where they fit.
-3. Decide on persistence: contests/divisions/judge assignments/players/raw
-   scores stored in MySQL (via the existing generic `Repository[T]`), with
-   `calc.Calculate()` run on demand or on write.
-4. Replace `frontend/src/api/mock.ts` with a real HTTP-backed
-   implementation of `ScoringApi` once the Go API exists — no other
-   frontend code should need to change.
-5. Flesh out real authentication (`controller/auth`'s Google login stub, or
-   similar) — the frontend's mocked email-only login is a stand-in.
-6. Once the native calc engine is trusted end-to-end, remove the superseded
-   `library/writer`/`library/reader`/`library/calc/const.go` code and the
-   root-level `.xlsx`/`.xlsxbak` working copies.
+1. Decide on real persistence: contests/divisions/judge assignments/players/
+   raw scores stored in MySQL (the generic `Repository[T]` in
+   `domain/service/generic.go` is already there for this), replacing
+   `server/store.go`'s in-memory maps — the HTTP handler layer shouldn't
+   need to change.
+2. Flesh out real authentication (replacing both the Google login stub and
+   `server/auth.go`'s trivial bearer scheme) — sessions/JWTs plus actual
+   credential verification.
+3. Map `handler/input.go`'s structs onto `server/`'s types where they fit,
+   or retire whichever turns out redundant.
+4. Once the native calc engine + backend are trusted end-to-end, remove the
+   superseded `library/writer`/`library/reader`/`library/calc/const.go` code
+   and the root-level `.xlsx`/`.xlsxbak` working copies.
