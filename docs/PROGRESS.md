@@ -156,8 +156,9 @@ future reference.
   the seam: swapping in a real HTTP client later means implementing this
   one interface, no view changes needed.
 - `src/api/mock.ts` — in-memory + `localStorage`-backed implementation,
-  seeded with a demo contest ("WYYC Demo Contest", division "3A", both
-  stages, 1 head judge + 6 clicker + 6 eval seeded users, 4 players, and
+  seeded with a demo contest ("Indonesia National Yoyo Championships",
+  division "3A", both stages, 1 head judge + 6 clicker + 6 eval seeded
+  users with real Indonesian names, 4 players, and
   pre-filled FINAL-stage scores). `login()` just matches by email (no real
   auth). `getResults()` builds a `calc.Contest`-shaped object from stored
   raw inputs and runs it through `lib/scoring.ts`, so results are genuinely
@@ -204,11 +205,13 @@ HTTP layer.
   `library/calc` directly.
 - `server/store.go` — nested contests → divisions → players/assignments/scores,
   seeded with the **identical demo data** as `frontend/src/api/mock.ts`
-  (same emails: `alice@example.com` head judge, `clicker.a1..a6@example.com`,
-  `eval.b1..b6@example.com`; contest "WYYC Demo Contest", division "3A",
-  both stages, 4 players, FINAL-stage scores pre-filled) — the same login
-  flow already verified against the mock works unchanged. `toPlayerInput`
-  converts stored raw scores into `calc.PlayerInput`.
+  (head judge Galih Kurniawan, `galih@example.com`; 6 clicker + 6 eval
+  judges with real Indonesian names, e.g. `agus.a1@example.com` .. 
+  `lestari.b6@example.com`; contest "Indonesia National Yoyo
+  Championships", division "3A", both stages, 4 players, FINAL-stage
+  scores pre-filled) — the same login flow already verified against the
+  mock works unchanged. `toPlayerInput` converts stored raw scores into
+  `calc.PlayerInput`.
 - `server/auth.go` — bearer auth: `POST /api/auth/login` returns the user's
   id as an opaque token; protected routes require `Authorization: Bearer
   <userId>`. No passwords — matches the mock's security level, a known gap.

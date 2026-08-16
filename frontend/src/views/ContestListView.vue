@@ -3,7 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useContestStore } from '../stores/contests'
-import type { JudgeAssignment, User } from '../types'
+import type { JudgeAssignment, ScoringStage, User } from '../types'
+
+const STAGE_ORDER: ScoringStage[] = ['prelim', 'final']
+
+function orderedStages(stages: ScoringStage[]): ScoringStage[] {
+  return STAGE_ORDER.filter((s) => stages.includes(s))
+}
 
 const auth = useAuthStore()
 const store = useContestStore()
@@ -66,7 +72,7 @@ async function createContest() {
 </script>
 
 <template>
-  <h1>Contests</h1>
+  <h1>All Contests</h1>
 
   <div class="card">
     <h2>Create a contest</h2>
@@ -98,6 +104,7 @@ async function createContest() {
         <tr>
           <th>Division</th>
           <th>Stages</th>
+          <th>Players</th>
           <th></th>
         </tr>
       </thead>
@@ -110,19 +117,21 @@ async function createContest() {
             </span>
           </td>
           <td>
-            <div class="row">
-              <RouterLink :to="{ name: 'division-players', params: { contestId: contest.id, divisionId: division.id } }">
-                Players
-              </RouterLink>
+            <RouterLink :to="{ name: 'division-players', params: { contestId: contest.id, divisionId: division.id } }">
+              Players
+            </RouterLink>
+          </td>
+          <td>
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start">
               <RouterLink
-                v-for="stage in division.stages"
+                v-for="stage in orderedStages(division.stages)"
                 :key="stage"
                 :to="{ name: 'score-entry', params: { contestId: contest.id, divisionId: division.id, stage } }"
               >
                 Score ({{ stage }})
               </RouterLink>
               <RouterLink
-                v-for="stage in division.stages"
+                v-for="stage in orderedStages(division.stages)"
                 :key="stage + '-results'"
                 :to="{ name: 'results', params: { contestId: contest.id, divisionId: division.id, stage } }"
               >

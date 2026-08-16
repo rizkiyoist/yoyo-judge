@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"yoyo-judge/library/calc"
@@ -70,17 +71,28 @@ func emptyRawScores(playerID string) PlayerRawScores {
 	}
 }
 
+// clickerJudgeNames and evalJudgeNames mirror
+// frontend/src/api/mock.ts's CLICKER_JUDGE_NAMES/EVAL_JUDGE_NAMES.
+var clickerJudgeNames = [6][2]string{
+	{"Agus", "Setiawan"}, {"Bambang", "Wijaya"}, {"Candra", "Saputra"},
+	{"Doni", "Firmansyah"}, {"Eko", "Prasetyo"}, {"Fajar", "Nugroho"},
+}
+var evalJudgeNames = [6][2]string{
+	{"Gita", "Lestari"}, {"Hendra", "Gunawan"}, {"Indah", "Puspitasari"},
+	{"Joko", "Susanto"}, {"Kartika", "Dewi"}, {"Lestari", "Wulandari"},
+}
+
 func (s *Store) seed() {
-	headJudge := User{ID: newID("u"), FirstName: "Alice", LastName: "Head", Email: "alice@example.com"}
+	headJudge := User{ID: newID("u"), FirstName: "Galih", LastName: "Kurniawan", Email: "galih@example.com"}
 	var clickerJudges, evalJudges []User
-	for i := 1; i <= 6; i++ {
+	for i := 0; i < 6; i++ {
 		clickerJudges = append(clickerJudges, User{
-			ID: newID("u"), FirstName: "Clicker", LastName: fmt.Sprintf("Judge A%d", i),
-			Email: fmt.Sprintf("clicker.a%d@example.com", i),
+			ID: newID("u"), FirstName: clickerJudgeNames[i][0], LastName: clickerJudgeNames[i][1],
+			Email: fmt.Sprintf("%s.a%d@example.com", strings.ToLower(clickerJudgeNames[i][0]), i+1),
 		})
 		evalJudges = append(evalJudges, User{
-			ID: newID("u"), FirstName: "Eval", LastName: fmt.Sprintf("Judge B%d", i),
-			Email: fmt.Sprintf("eval.b%d@example.com", i),
+			ID: newID("u"), FirstName: evalJudgeNames[i][0], LastName: evalJudgeNames[i][1],
+			Email: fmt.Sprintf("%s.b%d@example.com", strings.ToLower(evalJudgeNames[i][0]), i+1),
 		})
 	}
 	s.users = append([]User{headJudge}, append(append([]User{}, clickerJudges...), evalJudges...)...)
@@ -162,7 +174,7 @@ func (s *Store) seed() {
 	}
 
 	s.contests = []*contestRecord{{
-		ID: contestID, Name: "WYYC Demo Contest", OwnerUserID: headJudge.ID,
+		ID: contestID, Name: "Indonesia National Yoyo Championships", OwnerUserID: headJudge.ID,
 		Divisions: []*divisionRecord{division},
 	}}
 }

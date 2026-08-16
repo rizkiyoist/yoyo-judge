@@ -52,19 +52,36 @@ function emptyRawScores(playerId: string): PlayerRawScores {
   return { playerId, clickers: {}, deductions: emptyDeductions(), evals: {} }
 }
 
+const CLICKER_JUDGE_NAMES: [string, string][] = [
+  ['Agus', 'Setiawan'],
+  ['Bambang', 'Wijaya'],
+  ['Candra', 'Saputra'],
+  ['Doni', 'Firmansyah'],
+  ['Eko', 'Prasetyo'],
+  ['Fajar', 'Nugroho'],
+]
+const EVAL_JUDGE_NAMES: [string, string][] = [
+  ['Gita', 'Lestari'],
+  ['Hendra', 'Gunawan'],
+  ['Indah', 'Puspitasari'],
+  ['Joko', 'Susanto'],
+  ['Kartika', 'Dewi'],
+  ['Lestari', 'Wulandari'],
+]
+
 function seedDb(): Db {
-  const headJudge: User = { id: uid('u'), firstName: 'Alice', lastName: 'Head', email: 'alice@example.com' }
-  const clickerJudges: User[] = Array.from({ length: 6 }, (_, i) => ({
+  const headJudge: User = { id: uid('u'), firstName: 'Galih', lastName: 'Kurniawan', email: 'galih@example.com' }
+  const clickerJudges: User[] = CLICKER_JUDGE_NAMES.map(([firstName, lastName], i) => ({
     id: uid('u'),
-    firstName: 'Clicker',
-    lastName: `Judge A${i + 1}`,
-    email: `clicker.a${i + 1}@example.com`,
+    firstName,
+    lastName,
+    email: `${firstName.toLowerCase()}.a${i + 1}@example.com`,
   }))
-  const evalJudges: User[] = Array.from({ length: 6 }, (_, i) => ({
+  const evalJudges: User[] = EVAL_JUDGE_NAMES.map(([firstName, lastName], i) => ({
     id: uid('u'),
-    firstName: 'Eval',
-    lastName: `Judge B${i + 1}`,
-    email: `eval.b${i + 1}@example.com`,
+    firstName,
+    lastName,
+    email: `${firstName.toLowerCase()}.b${i + 1}@example.com`,
   }))
   const users = [headJudge, ...clickerJudges, ...evalJudges]
 
@@ -149,7 +166,7 @@ function seedDb(): Db {
 
   const contest: DbContest = {
     id: contestId,
-    name: 'WYYC Demo Contest',
+    name: 'Indonesia National Yoyo Championships',
     ownerUserId: headJudge.id,
     divisions: [division],
   }
