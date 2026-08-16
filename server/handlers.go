@@ -32,6 +32,16 @@ func readJSON(r *http.Request, dst any) bool {
 	return json.NewDecoder(r.Body).Decode(dst) == nil
 }
 
+// nonNil turns a nil slice into an empty one before it's JSON-encoded — Go
+// marshals a nil slice as `null`, which crashes frontend code expecting an
+// array (e.g. `.filter`/`.length` on the response).
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
 // Mount registers every ScoringApi HTTP route (frontend/src/api/client.ts)
 // under /api on the given router.
 func Mount(router *mux.Router, store *Store) {
@@ -112,7 +122,7 @@ func (s *Store) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, matches)
+	writeJSON(w, http.StatusOK, nonNil(matches))
 }
 
 // --- contests ---
@@ -142,7 +152,7 @@ func (s *Store) handleListContests(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, append(owned, invited...))
+	writeJSON(w, http.StatusOK, nonNil(append(owned, invited...)))
 }
 
 func (s *Store) handleCreateContest(w http.ResponseWriter, r *http.Request) {
@@ -233,7 +243,7 @@ func (s *Store) handleListJudgeAssignments(w http.ResponseWriter, r *http.Reques
 	for _, d := range c.Divisions {
 		assignments = append(assignments, d.Assignments...)
 	}
-	writeJSON(w, http.StatusOK, assignments)
+	writeJSON(w, http.StatusOK, nonNil(assignments))
 }
 
 func (s *Store) handleInviteJudge(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +309,7 @@ func (s *Store) handleListPlayers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, []Player{})
 		return
 	}
-	writeJSON(w, http.StatusOK, d.Players)
+	writeJSON(w, http.StatusOK, nonNil(d.Players))
 }
 
 func (s *Store) handleAddPlayer(w http.ResponseWriter, r *http.Request) {

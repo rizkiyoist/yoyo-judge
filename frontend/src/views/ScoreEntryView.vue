@@ -83,6 +83,7 @@ async function saveEval(playerId: string, category: string, value: number) {
 
 <template>
   <div v-if="contest">
+    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) scoring</h1>
 
     <p v-if="!myAssignments.length" class="muted">

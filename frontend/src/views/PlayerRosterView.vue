@@ -40,18 +40,16 @@ async function addPlayer() {
 
 <template>
   <div v-if="contest">
+    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — {{ division?.name }} players</h1>
 
     <div v-if="isOwner" class="card">
       <h2>Add a player</h2>
       <div class="row">
-        <div class="field">
-          <label>Number</label>
-          <input v-model.number="nextNumber" type="number" min="1" style="width: 80px" />
-        </div>
+        <span class="badge">#{{ nextNumber }}</span>
         <div class="field" style="flex: 1">
           <label>Name</label>
-          <input v-model="name" type="text" placeholder="Player name" />
+          <input v-model="name" type="text" placeholder="Player name" @keyup.enter="addPlayer" />
         </div>
       </div>
       <button class="primary" :disabled="saving" @click="addPlayer">Add player</button>

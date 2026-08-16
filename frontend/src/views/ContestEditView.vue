@@ -57,6 +57,7 @@ async function toggleStage(divisionId: string, currentStages: ScoringStage[], st
 
 <template>
   <div v-if="contest">
+    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — Divisions</h1>
 
     <p v-if="!isOwner" class="muted">Only the head judge who created this contest can edit divisions.</p>

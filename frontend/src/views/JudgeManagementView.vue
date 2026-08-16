@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import type { Contest, JudgeAssignment, JudgeRole, ScoringStage, User } from '../types'
@@ -21,13 +21,31 @@ const selectedSlot = ref(1)
 const isOwner = computed(() => contest.value?.ownerUserId === auth.user?.id)
 const selectedDivision = computed(() => contest.value?.divisions.find((d) => d.id === selectedDivisionId.value))
 
+// Always keep a division+stage selected once one is available, so
+// inviting/searching works immediately without requiring a manual pick.
+watch(
+  () => contest.value?.divisions,
+  (divisions) => {
+    if (!divisions?.length) return
+    if (!divisions.some((d) => d.id === selectedDivisionId.value)) {
+      selectedDivisionId.value = divisions[0].id
+    }
+  },
+  { immediate: true },
+)
+watch(
+  selectedDivision,
+  (division) => {
+    if (division && !division.stages.includes(selectedStage.value)) {
+      selectedStage.value = division.stages[0] ?? 'final'
+    }
+  },
+  { immediate: true },
+)
+
 async function load() {
   contest.value = await api.getContest(props.contestId)
   assignments.value = await api.listJudgeAssignments(props.contestId)
-  if (contest.value?.divisions.length && !selectedDivisionId.value) {
-    selectedDivisionId.value = contest.value.divisions[0].id
-    selectedStage.value = contest.value.divisions[0].stages[0] ?? 'final'
-  }
   const allSearched = await api.searchUsers('example.com')
   usersById.value = Object.fromEntries(allSearched.map((u) => [u.id, u]))
 }
@@ -41,6 +59,8 @@ async function search() {
 async function invite(user: User) {
   if (!selectedDivisionId.value) return
   await api.inviteJudge(props.contestId, selectedDivisionId.value, selectedStage.value, user.id, selectedRole.value, selectedSlot.value)
+  query.value = ''
+  searchResults.value = []
   await load()
 }
 
@@ -61,6 +81,7 @@ const assignmentsForSelection = computed(() =>
 
 <template>
   <div v-if="contest">
+    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — Judges</h1>
     <p v-if="!isOwner" class="muted">Only the head judge who created this contest can invite judges.</p>
 
@@ -82,8 +103,8 @@ const assignmentsForSelection = computed(() =>
         <div class="field">
           <label>Role</label>
           <select v-model="selectedRole">
-            <option value="clicker">Clicker judge (J-A)</option>
-            <option value="evaluator">Evaluation judge (J-B)</option>
+            <option value="clicker">Clicker Judge (TEx)</option>
+            <option value="evaluator">Evaluation Judge (PEv)</option>
           </select>
         </div>
         <div class="field">
@@ -119,7 +140,7 @@ const assignmentsForSelection = computed(() =>
         </thead>
         <tbody>
           <tr v-for="a in assignmentsForSelection" :key="a.id">
-            <td>{{ a.role === 'clicker' ? 'Clicker (J-A)' : 'Evaluator (J-B)' }}</td>
+            <td>{{ a.role === 'clicker' ? 'Clicker Judge (TEx)' : 'Evaluation Judge (PEv)' }}</td>
             <td>{{ a.slot }}</td>
             <td>{{ userLabel(a.userId) }}</td>
             <td v-if="isOwner"><button class="danger" @click="remove(a)">Remove</button></td>

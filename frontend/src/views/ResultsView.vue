@@ -60,6 +60,7 @@ function toggle(playerId: string) {
 
 <template>
   <div v-if="contest">
+    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) results</h1>
 
     <div class="card">
