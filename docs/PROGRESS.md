@@ -1,6 +1,6 @@
 # Progress Summary
 
-_Last updated: 2026-08-16 (download results, seed data expanded, visual polish)_
+_Last updated: 2026-08-21 (real production deploy: TLS on backend, port config)_
 
 ## Goal
 
@@ -181,9 +181,9 @@ future reference.
   reflect seeded deductions) → judge management (invite/list/remove) →
   score entry as an invited clicker judge (edit persists to `localStorage`
   and round-trips through the UI). No console errors observed.
-- `build.ps1` (repo root) — builds both the Go backend (`bin/yoyo-judge.exe`)
-  and the frontend (`frontend/dist`) in one step; `-Only backend` /
-  `-Only frontend` to build just one.
+- `build.ps1` (repo root) — builds both the Go backend and the frontend in
+  one step; `-Only backend` / `-Only frontend` to build just one. See
+  "Single-binary deploy" below for how this evolved.
 
 Superseded by the real backend below — the frontend now talks to it by
 default (`VITE_USE_MOCK=true` still selects the mock for offline work).
@@ -297,9 +297,191 @@ HTTP layer.
   nothing replacing the lost margin — added `margin-bottom` back on the
   wrapping row.
 
+### Single-binary deploy: embedded frontend + Linux cross-build — new, 2026-08-21
+
+Modeled on the sibling project `../orkestrator-v2`'s approach (its
+`backend/static.go` + `main.go`'s `r.NoRoute` handler), so `bin/` is now a
+true "copy it to the server and run it" deploy — no separate static host,
+docroot, or SPA-fallback config needed on the ops side.
+
+- `static.go` (repo root) — `//go:embed all:dist` embeds a `dist/` folder
+  (populated by `build.ps1` from `frontend/dist` before compiling) directly
+  into the Go binary. **`dist/` is gitignored** (like `bin/`) — a fresh
+  clone needs `./build.ps1` (or at least its frontend step) run once before
+  `go build .`/`go run .` will succeed, since the embed path must exist at
+  compile time.
+- `router.go` — after mounting `/api/*` (`server.Mount`) and `/healthz`
+  (moved off `/`, which now serves the frontend), a catch-all
+  `router.PathPrefix("/").Handler(...)` serves the embedded `dist/` via
+  `http.FileServer`, with manual SPA fallback: a request path containing a
+  `.` is served as a static asset, anything else gets `index.html` so Vue
+  Router's history-mode client-side routing can take over. Registered last
+  so it doesn't shadow the API routes. (Both `/api` and this catch-all
+  later gained a `BASE_PATH` prefix — see "BASE_PATH deploy mode" below.)
+- `frontend/vite.config.ts` — `base` changed from `'./'` (relative) back to
+  `'/'` (absolute root). This was a real bug caught while verifying the
+  embedded setup: with a relative base, a hard refresh on a nested route
+  like `/contests/abc/edit` resolves `./assets/*.js` relative to that
+  path (`/contests/abc/assets/*.js`) instead of the real root, 404ing —
+  confirmed with `curl` before and after the fix. Absolute paths are the
+  right call now that the app is always served from one origin's root by
+  the embedded server; the earlier "relocatable to any subpath" goal is
+  moot for this deploy model (the still-copied `bin/static/` standalone
+  folder is the fallback for anyone who does want to host it separately,
+  but they'd need to rebuild with a matching `base` anyway, same as they
+  already need to rebuild with a matching `VITE_API_BASE_URL`).
+- `build.ps1` — now cross-compiles **both** `bin/yoyo-judge.exe`
+  (windows/amd64) and `bin/yoyo-judge-linux-amd64` (linux/amd64,
+  `CGO_ENABLED=0`, statically linked, verified as a real ELF binary) from
+  the same source tree via `GOOS`/`GOARCH`. Build order changed: frontend
+  now builds *first* (`Build-Frontend`), copying into repo-root `dist/` for
+  embedding, then `bin/static/` as before; `Build-Backend` fails fast with
+  a clear message if `dist/` doesn't exist yet, instead of a cryptic
+  `//go:embed` compiler error.
+- Verified end-to-end against the compiled `yoyo-judge.exe` itself (not the
+  Vite dev server): login → contest list → results (deep nested route) →
+  hard browser reload on that same deep URL — all served correctly from
+  `:5000`, 0 console errors, confirmed with a throwaway Playwright script
+  before deleting it.
+
+### BASE_PATH deploy mode — new, 2026-08-21
+
+Also mirroring `../orkestrator-v2` (its `config.BasePath`/`.env`
+`BASE_PATH`): a second deployment shape for when you don't control the
+config of whatever's already serving the target domain on port 80/443 (so
+no reverse-proxy `location` block can be added). Both shapes now coexist,
+selected by whether `BASE_PATH` is set at runtime:
+
+- **Same-origin (default)**: `yoyo-judge.exe`/`yoyo-judge-linux-amd64`
+  serves both the API and the embedded frontend on one port, entirely
+  under a shared prefix (default `/yoyojudge`, matching orkestrator-v2's
+  `/orkestrator-v2` convention) — e.g. `http://server:5000/yoyojudge`.
+  Works standalone or behind a reverse proxy that preserves the full path.
+- **Cross-origin (split)**: the frontend build (`bin/static/` or the
+  `dist/` that gets embedded) is instead copied directly into an existing
+  web server's docroot at a matching subpath (e.g.
+  `/var/www/html/yoyojudge/`) — no config change needed there, it just
+  serves whatever files exist. The backend keeps running standalone on its
+  own exposed port, with its routes prefixed the same way, and the
+  frontend is built with an absolute `VITE_API_BASE_URL` pointing at that
+  port so its (now cross-origin) API calls reach it directly.
+
+Changes:
+- `router.go`'s new `basePath()` reads `BASE_PATH` from the environment,
+  defaulting to `/yoyojudge` (trailing slash trimmed). Every route —
+  `/healthz`, `server.Mount`'s `/api/*`, and the embedded-frontend
+  catch-all — is now registered under this prefix. The catch-all also
+  registers an exact-match route at the bare prefix (no trailing slash,
+  e.g. `/yoyojudge`) in addition to `PathPrefix(bp + "/")`, since a mux
+  `PathPrefix` alone wouldn't match a request with nothing after the
+  prefix.
+- `server/handlers.go`'s `Mount` now takes a `basePath string` param,
+  mounting `/api` under `basePath + "/api"` instead of a hardcoded `/api`.
+- `frontend/vite.config.ts` — production builds now set `base` to
+  `${VITE_BASE_PATH}/` (default `/yoyojudge/`); the dev server keeps
+  `base: '/'` (simplest for local dev) but proxies that same prefix to
+  `http://localhost:5000` so API calls made during `npm run dev` still
+  reach the backend without needing `VITE_API_BASE_URL` set.
+- `frontend/src/api/http.ts` — the default `BASE_URL` (used when
+  `VITE_API_BASE_URL` isn't set) is now a **relative**, same-origin path:
+  `${VITE_BASE_PATH}/api` (default `/yoyojudge/api`) instead of the
+  previously hardcoded `http://localhost:5000/api`. This is what makes the
+  embedded same-origin mode work regardless of what `BASE_PATH` is set to,
+  without baking in a hostname; `VITE_API_BASE_URL` remains the override
+  for the cross-origin split-deploy shape.
+- `build.ps1` gained `-BasePath` and `-ApiBaseUrl` params, setting
+  `VITE_BASE_PATH`/`VITE_API_BASE_URL` for the frontend build step (restored
+  afterward so they don't leak into the calling shell).
+- Verified with `curl` against the compiled binary: `/yoyojudge/`,
+  `/yoyojudge` (no trailing slash), `/yoyojudge/assets/*.js`,
+  `/yoyojudge/api/users/search`, `/yoyojudge/healthz`, and a deep SPA
+  route all return 200; the old unprefixed `/api/...` and `/` now 404 (as
+  expected — everything lives under the prefix now). Re-verified the full
+  browser flow (login → deep route → **hard reload on that deep,
+  prefixed URL**) against the compiled binary with 0 console errors, and
+  separately verified `npm run dev` still works end-to-end through the new
+  proxy rule.
+
+### Real production deployment: TLS on the backend, configurable port — new, 2026-08-21
+
+What actually shipped to `rizkiyoist.duckdns.org`, after a long back-and-forth
+figuring out which of the two shapes above the real target needed, plus two
+real bugs found along the way. Worth reading in full before touching the
+deploy again.
+
+**The actual deployed shape is the cross-origin split** (frontend on the
+existing domain's nginx docroot, backend standalone on its own port),
+matching `../orkestrator-v2`'s pattern — but with one addition orkestrator
+doesn't have:
+
+- `router.go` can now serve **HTTPS directly**: `TLS_CERT_FILE`/
+  `TLS_KEY_FILE` env vars, or (simpler, no env vars needed at all)
+  `cert.pem`/`key.pem` sitting next to the binary are picked up
+  automatically (`firstExisting()`). Falls back to plain HTTP if neither is
+  present.
+- The listen port is now `PORT`-configurable (`port()`), defaulting to
+  `8081` — not orkestrator's `8080`, so the two can run on the same box
+  without colliding (they're on the same server: both resolve to
+  `103.134.154.210`, both actually served under
+  `rizkiyoist.duckdns.org/{orkestrator-v2,yoyojudge}`, confirmed with curl).
+- `build.ps1`'s `-ApiBaseUrl` **default** is now the real production value:
+  `https://rizkiyoist.duckdns.org:8081/yoyojudge/api` — a plain
+  `.\build.ps1` with no flags produces the correct deployable build. This
+  replaced an earlier design where the default was a same-origin relative
+  path (correct for the embedded single-binary shape, wrong for what's
+  actually deployed) — that default kept silently reverting the API URL to
+  the wrong thing on rebuild, which was the single biggest source of
+  wasted back-and-forth in this session. Lesson: **when there's one real
+  deployment target, bake its actual values in as the default** — don't
+  make the correct build depend on remembering a flag.
+
+**Why HTTPS on the backend is unavoidable here (not a preference):**
+`rizkiyoist.duckdns.org` 301-redirects `http://` → `https://` (confirmed
+with curl — this is real, not assumed). That forces the page to load over
+HTTPS, and browsers hard-block an HTTPS page from calling a plain `http://`
+API (mixed content) — no exception for "same server, different port".
+Initially assumed `../orkestrator-v2` proved this pattern safe without TLS
+(its README bakes in a plain `http://103.134.154.210:8080/...` API URL);
+directly verified that `../orkestrator-v2` is served from the **same**
+domain, with the **same** forced-HTTPS redirect — meaning it has this exact
+same latent bug, just never hit/noticed. Confirmed live in a real browser
+(not just curl) at the user's request. **Not fixed there** — a separate,
+independent fix would be needed for that app (its own TLS support + its
+own cert), explicitly out of scope here per the user's request not to touch
+that repo.
+
+**Real bug found, not a CORS bug despite how it presented:** after getting
+the cert working, the API URL was initially built using the server's raw
+IP (`https://103.134.154.210:8081/...`). The browser reported this as a
+CORS failure — but the actual cause was a **TLS certificate hostname
+mismatch**: the cert was issued for `rizkiyoist.duckdns.org`, not for the
+IP, so a real browser's certificate validation rejects the IP connection
+outright, which surfaces as a blocked cross-origin request. `curl -k`
+(skip cert validation) masked this during earlier verification, so it
+looked fine there — plain `curl` without `-k` reproduced the real failure
+immediately once tried. Fixed by using the domain name (not the IP) in the
+API URL, on the same port; a cert only validates against the hostname it
+was actually issued for, regardless of what IP that hostname resolves to.
+
+**Cert setup used**: `acme.sh` with DuckDNS's DNS-01 challenge (no port
+binding, so no conflict with nginx already on 80/443):
+```
+curl https://get.acme.sh | sh -s email=...
+export DuckDNS_Token="..."
+~/.acme.sh/acme.sh --issue --dns dns_duckdns -d rizkiyoist.duckdns.org
+~/.acme.sh/acme.sh --install-cert -d rizkiyoist.duckdns.org \
+  --key-file ~/yoyojudge/key.pem --fullchain-file ~/yoyojudge/cert.pem
+```
+Auto-renews via `acme.sh`'s own cron job; the backend just needs restarting
+after a renewal to pick up the refreshed files.
+
 Not yet done: no real persistence (everything resets on backend restart);
 no real authentication; `handler/input.go`'s structs and the `users`/
-`user_socials` GORM models aren't connected to any of this yet.
+`user_socials` GORM models aren't connected to any of this yet; the
+reload-into-404-on-a-deep-route issue is inherent to serving the frontend
+as static files from nginx (no SPA-fallback rule there) and is unfixed —
+would need either an nginx `try_files` rule or switching the frontend to
+hash-based routing.
 
 ## What's not implemented yet
 

@@ -5,3 +5,4 @@ dbconfig.yml
 env.json
 /tmp
 /bin
+/dist

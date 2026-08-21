@@ -43,9 +43,13 @@ func nonNil[T any](s []T) []T {
 }
 
 // Mount registers every ScoringApi HTTP route (frontend/src/api/client.ts)
-// under /api on the given router.
-func Mount(router *mux.Router, store *Store) {
-	api := router.PathPrefix("/api").Subrouter()
+// under {basePath}/api on the given router. basePath is "" for same-origin
+// deploys (the embedded single-binary mode) or a path like "/yoyojudge" when
+// the frontend is hosted separately (e.g. copied into an existing nginx
+// docroot the app doesn't control the config of) and calls this backend
+// directly, cross-origin, at a matching prefix.
+func Mount(router *mux.Router, store *Store, basePath string) {
+	api := router.PathPrefix(basePath + "/api").Subrouter()
 
 	api.HandleFunc("/auth/login", store.handleLogin).Methods(http.MethodPost)
 	api.HandleFunc("/auth/me", store.handleMe).Methods(http.MethodGet)

@@ -1,5 +1,12 @@
 // Real HTTP-backed ScoringApi implementation, calling the Go backend
-// (server/) at VITE_API_BASE_URL (default http://localhost:5000/api).
+// (server/). By default calls a relative, same-origin path prefixed by
+// VITE_BASE_PATH (default "/yoyojudge", matching router.go's basePath()) —
+// this is correct for the embedded single-binary deploy (frontend and API
+// served by the same process) and for local dev (vite.config.ts proxies
+// that prefix to the backend). Set VITE_API_BASE_URL to an absolute URL
+// instead when the frontend is hosted separately from the backend (e.g.
+// pasted into an existing nginx docroot) and must call the API
+// cross-origin.
 import type {
   ClickerInput,
   Contest,
@@ -15,7 +22,8 @@ import type {
 } from '../types'
 import type { ScoringApi } from './client'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api'
+const BASE_PATH = (import.meta.env.VITE_BASE_PATH ?? '/yoyojudge').replace(/\/$/, '')
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? `${BASE_PATH}/api`
 const TOKEN_KEY = 'yoyo-judge-token'
 
 function getToken(): string | null {
