@@ -21,20 +21,21 @@ type User struct {
 
 // Division mirrors frontend/src/types.ts's Division.
 type Division struct {
-	ID           string              `json:"id"`
-	ContestID    string              `json:"contestId"`
-	Name         string              `json:"name"`
-	Stages       []calc.ScoringStage `json:"stages"`
-	LockedStages []calc.ScoringStage `json:"lockedStages"`
+	ID        string              `json:"id"`
+	ContestID string              `json:"contestId"`
+	Name      string              `json:"name"`
+	Stages    []calc.ScoringStage `json:"stages"`
 }
 
 // Contest mirrors frontend/src/types.ts's Contest.
 type Contest struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Year        int        `json:"year"`
-	OwnerUserID string     `json:"ownerUserId"`
-	Divisions   []Division `json:"divisions"`
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	Year            int        `json:"year"`
+	OwnerUserID     string     `json:"ownerUserId"`
+	HeadJudgeUserID string     `json:"headJudgeUserId"`
+	Locked          bool       `json:"locked"`
+	Divisions       []Division `json:"divisions"`
 }
 
 // JudgeRole mirrors frontend/src/types.ts's JudgeRole.

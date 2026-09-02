@@ -3,23 +3,33 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useContestStore } from '../stores/contests'
-import type { Contest, ScoringStage } from '../types'
+import type { Contest, Player, ScoringStage } from '../types'
 
 const props = defineProps<{ contestId: string }>()
 
 const auth = useAuthStore()
 const store = useContestStore()
 const contest = ref<Contest | null>(null)
+const playersByDivision = ref<Record<string, Player[]>>({})
 
 const divisionName = ref('')
 const wantsPrelim = ref(true)
 const wantsFinal = ref(true)
 const saving = ref(false)
+const deleting = ref<Record<string, boolean>>({})
+const deleteError = ref<Record<string, string>>({})
 
-const isOwner = computed(() => contest.value?.ownerUserId === auth.user?.id)
+const canEdit = computed(
+  () => !!auth.user && (contest.value?.ownerUserId === auth.user.id || contest.value?.headJudgeUserId === auth.user.id),
+)
 
 async function load() {
   contest.value = await api.getContest(props.contestId)
+  if (!contest.value) return
+  const entries = await Promise.all(
+    contest.value.divisions.map(async (d) => [d.id, await api.listPlayers(d.id)] as const),
+  )
+  playersByDivision.value = Object.fromEntries(entries)
 }
 
 onMounted(load)
@@ -53,6 +63,25 @@ async function toggleStage(divisionId: string, currentStages: ScoringStage[], st
   await store.updateDivisionStages(contest.value.id, divisionId, next)
   await load()
 }
+
+function playerCount(divisionId: string): number {
+  return playersByDivision.value[divisionId]?.length ?? 0
+}
+
+async function deleteDivision(divisionId: string) {
+  if (!contest.value) return
+  if (!confirm('Delete this division? This cannot be undone.')) return
+  deleting.value[divisionId] = true
+  deleteError.value[divisionId] = ''
+  try {
+    await store.deleteDivision(contest.value.id, divisionId)
+    await load()
+  } catch (e) {
+    deleteError.value[divisionId] = e instanceof Error ? e.message : 'Failed to delete division'
+  } finally {
+    deleting.value[divisionId] = false
+  }
+}
 </script>
 
 <template>
@@ -60,9 +89,12 @@ async function toggleStage(divisionId: string, currentStages: ScoringStage[], st
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — Divisions</h1>
 
-    <p v-if="!isOwner" class="muted">Only the head judge who created this contest can edit divisions.</p>
+    <p v-if="!canEdit" class="muted">Only the contest owner or head judge can edit divisions.</p>
+    <p v-if="contest.locked" class="error">
+      🔒 This contest is locked — unlock it from the Judges page before editing divisions.
+    </p>
 
-    <div v-if="isOwner" class="card">
+    <div v-if="canEdit && !contest.locked" class="card">
       <h2>Add a division</h2>
       <div class="field">
         <label>Division name</label>
@@ -83,6 +115,8 @@ async function toggleStage(divisionId: string, currentStages: ScoringStage[], st
             <th>Name</th>
             <th>Prelim</th>
             <th>Final</th>
+            <th>Players</th>
+            <th v-if="canEdit"></th>
           </tr>
         </thead>
         <tbody>
@@ -92,7 +126,7 @@ async function toggleStage(divisionId: string, currentStages: ScoringStage[], st
               <input
                 type="checkbox"
                 :checked="division.stages.includes('prelim')"
-                :disabled="!isOwner"
+                :disabled="!canEdit || contest.locked"
                 @change="toggleStage(division.id, division.stages, 'prelim')"
               />
             </td>
@@ -100,9 +134,23 @@ async function toggleStage(divisionId: string, currentStages: ScoringStage[], st
               <input
                 type="checkbox"
                 :checked="division.stages.includes('final')"
-                :disabled="!isOwner"
+                :disabled="!canEdit || contest.locked"
                 @change="toggleStage(division.id, division.stages, 'final')"
               />
+            </td>
+            <td>{{ playerCount(division.id) }}</td>
+            <td v-if="canEdit">
+              <button
+                class="danger"
+                :disabled="contest.locked || deleting[division.id] || playerCount(division.id) > 0"
+                :title="playerCount(division.id) > 0 ? 'Remove all players from this division first' : ''"
+                @click="deleteDivision(division.id)"
+              >
+                {{ deleting[division.id] ? 'Deleting…' : 'Delete' }}
+              </button>
+              <div v-if="deleteError[division.id]" class="error" style="font-size: 0.85em">
+                {{ deleteError[division.id] }}
+              </div>
             </td>
           </tr>
         </tbody>

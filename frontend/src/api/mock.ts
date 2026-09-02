@@ -6,6 +6,7 @@ import type {
   Contest,
   Division,
   JudgeAssignment,
+  JudgeRole,
   MajorDeductions,
   Player,
   PlayerRawScores,
@@ -26,6 +27,8 @@ interface DbContest {
   name: string
   year: number
   ownerUserId: string
+  headJudgeUserId: string
+  locked: boolean
   divisions: DbDivision[]
 }
 
@@ -172,7 +175,6 @@ function seedDb(): Db {
     contestId,
     name: '3A',
     stages: ['prelim', 'final'],
-    lockedStages: [],
     players,
     assignments,
     scores: { final: finalScores, prelim: players.map((p) => emptyRawScores(p.id)) },
@@ -183,6 +185,8 @@ function seedDb(): Db {
     name: 'Indonesia National Yoyo Championships',
     year: 2026,
     ownerUserId: headJudge.id,
+    headJudgeUserId: headJudge.id,
+    locked: false,
     divisions: [division],
   }
 
@@ -215,12 +219,13 @@ function toContest(dc: DbContest): Contest {
     name: dc.name,
     year: dc.year,
     ownerUserId: dc.ownerUserId,
+    headJudgeUserId: dc.headJudgeUserId || dc.ownerUserId,
+    locked: dc.locked,
     divisions: dc.divisions.map((d) => ({
       id: d.id,
       contestId: d.contestId,
       name: d.name,
       stages: d.stages,
-      lockedStages: d.lockedStages,
     })),
   }
 }
@@ -233,16 +238,58 @@ function findDivision(db: Db, divisionId: string): { contest: DbContest; divisio
   return null
 }
 
-// Mirrors server/store.go's authorizeSlotScoreWrite/authorizeDeductionsWrite
-// lock check (not the finer per-slot assignment check — the mock has no
-// real per-user security boundary anyway, this just keeps the lock UX
-// testable offline). The contest owner can always write; anyone else is
-// blocked once the stage is locked.
-function assertScoreWritable(db: Db, contest: DbContest, division: DbDivision, stage: ScoringStage): void {
-  if (contest.ownerUserId === db.sessionUserId) return
-  if (division.lockedStages.includes(stage)) {
-    throw new Error('scores are locked by the head judge')
+// Mirrors server/store.go's role helpers: the owner never changes; the
+// head judge defaults to the owner but is transferable (see
+// transferHeadJudge below).
+function isHeadJudge(contest: DbContest, userId: string | null): boolean {
+  return !!userId && (contest.headJudgeUserId || contest.ownerUserId) === userId
+}
+function isOwnerOrHeadJudge(contest: DbContest, userId: string | null): boolean {
+  return !!userId && (contest.ownerUserId === userId || isHeadJudge(contest, userId))
+}
+
+// Mirrors server/store.go's authorizeContestWrite: used for adding/
+// removing divisions, players, and judges, and for transferring
+// head-judge status.
+function assertContestWritable(contest: DbContest, userId: string | null): void {
+  if (contest.locked) throw new Error('this contest is locked')
+  if (!isOwnerOrHeadJudge(contest, userId)) {
+    throw new Error('only the contest owner or head judge can do this')
   }
+}
+
+// Mirrors server/store.go's authorizeSlotScoreWrite: a locked contest
+// rejects everyone, even the head judge (who must unlock first); the head
+// judge otherwise always may (the override page's "act as any judge"),
+// anyone else must hold exactly this division+stage+role+slot.
+function assertSlotScoreWritable(
+  contest: DbContest,
+  division: DbDivision,
+  stage: ScoringStage,
+  role: JudgeRole,
+  slot: number,
+  userId: string | null,
+): void {
+  if (contest.locked) throw new Error('this contest is locked')
+  if (isHeadJudge(contest, userId)) return
+  const assigned = division.assignments.some(
+    (a) => a.stage === stage && a.role === role && a.slot === slot && a.userId === userId,
+  )
+  if (!assigned) throw new Error('you are not the assigned judge for this slot')
+}
+
+// Mirrors server/store.go's authorizeDeductionsWrite: any assigned judge
+// (either role, not just one slot) may record deductions.
+function assertDeductionsWritable(
+  contest: DbContest,
+  division: DbDivision,
+  stage: ScoringStage,
+  userId: string | null,
+): void {
+  if (contest.locked) throw new Error('this contest is locked')
+  if (isHeadJudge(contest, userId)) return
+  const assigned = division.assignments.some((a) => a.stage === stage && a.userId === userId)
+  if (!assigned) throw new Error('you are not an assigned judge for this division/stage')
 }
 
 function rawScoresFor(division: DbDivision, stage: ScoringStage, playerId: string): PlayerRawScores {
@@ -324,7 +371,15 @@ export function createMockApi(): ScoringApi {
     },
 
     async createContest(name, year, ownerUserId) {
-      const contest: DbContest = { id: uid('c'), name, year, ownerUserId, divisions: [] }
+      const contest: DbContest = {
+        id: uid('c'),
+        name,
+        year,
+        ownerUserId,
+        headJudgeUserId: ownerUserId,
+        locked: false,
+        divisions: [],
+      }
       db.contests.push(contest)
       saveDb(db)
       return delay(toContest(contest))
@@ -333,48 +388,68 @@ export function createMockApi(): ScoringApi {
     async addDivision(contestId, name, stages) {
       const contest = db.contests.find((c) => c.id === contestId)
       if (!contest) throw new Error('contest not found')
+      assertContestWritable(contest, db.sessionUserId)
       const division: DbDivision = {
         id: uid('d'),
         contestId,
         name,
         stages,
-        lockedStages: [],
         players: [],
         assignments: [],
         scores: {},
       }
       contest.divisions.push(division)
       saveDb(db)
-      return delay({ id: division.id, contestId, name, stages, lockedStages: [] })
+      return delay({ id: division.id, contestId, name, stages })
     },
 
     async updateDivisionStages(contestId, divisionId, stages) {
       const contest = db.contests.find((c) => c.id === contestId)
       const division = contest?.divisions.find((d) => d.id === divisionId)
       if (!contest || !division) throw new Error('division not found')
+      assertContestWritable(contest, db.sessionUserId)
       division.stages = stages
       saveDb(db)
-      return delay({ id: division.id, contestId, name: division.name, stages, lockedStages: division.lockedStages })
+      return delay({ id: division.id, contestId, name: division.name, stages })
     },
 
-    async setDivisionStageLock(divisionId, stage, locked) {
-      const found = findDivision(db, divisionId)
-      if (!found) throw new Error('division not found')
-      const { contest, division } = found
-      if (contest.ownerUserId !== db.sessionUserId) {
-        throw new Error('only the contest owner can lock or unlock scores')
+    async deleteDivision(contestId, divisionId) {
+      const contest = db.contests.find((c) => c.id === contestId)
+      const division = contest?.divisions.find((d) => d.id === divisionId)
+      if (!contest || !division) throw new Error('division not found')
+      assertContestWritable(contest, db.sessionUserId)
+      if (division.players.length > 0) {
+        throw new Error('this division still has players — remove them all before deleting the division')
       }
-      division.lockedStages = locked
-        ? [...new Set([...division.lockedStages, stage])]
-        : division.lockedStages.filter((s) => s !== stage)
+      contest.divisions = contest.divisions.filter((d) => d.id !== divisionId)
       saveDb(db)
-      return delay({
-        id: division.id,
-        contestId: division.contestId,
-        name: division.name,
-        stages: division.stages,
-        lockedStages: division.lockedStages,
-      })
+      return delay(undefined)
+    },
+
+    async setContestLocked(contestId, locked) {
+      const contest = db.contests.find((c) => c.id === contestId)
+      if (!contest) throw new Error('contest not found')
+      if (!isHeadJudge(contest, db.sessionUserId)) {
+        throw new Error('only the head judge can lock or unlock this contest')
+      }
+      contest.locked = locked
+      saveDb(db)
+      return delay(toContest(contest))
+    },
+
+    async transferHeadJudge(contestId, userId) {
+      const contest = db.contests.find((c) => c.id === contestId)
+      if (!contest) throw new Error('contest not found')
+      assertContestWritable(contest, db.sessionUserId)
+      const eligible =
+        contest.ownerUserId === userId ||
+        contest.divisions.some((d) => d.assignments.some((a) => a.userId === userId))
+      if (!eligible) {
+        throw new Error('the new head judge must be the contest owner or a judge already invited to this contest')
+      }
+      contest.headJudgeUserId = userId
+      saveDb(db)
+      return delay(toContest(contest))
     },
 
     async listJudgeAssignments(contestId) {
@@ -386,6 +461,7 @@ export function createMockApi(): ScoringApi {
     async inviteJudge(contestId, divisionId, stage, identity, role, slot) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
+      assertContestWritable(found.contest, db.sessionUserId)
       let userId: string
       if ('userId' in identity) {
         userId = identity.userId
@@ -411,11 +487,12 @@ export function createMockApi(): ScoringApi {
       return delay(assignment)
     },
 
-    async removeJudgeAssignment(_contestId, assignmentId) {
-      for (const contest of db.contests) {
-        for (const division of contest.divisions) {
-          division.assignments = division.assignments.filter((a) => a.id !== assignmentId)
-        }
+    async removeJudgeAssignment(contestId, assignmentId) {
+      const contest = db.contests.find((c) => c.id === contestId)
+      if (!contest) throw new Error('contest not found')
+      assertContestWritable(contest, db.sessionUserId)
+      for (const division of contest.divisions) {
+        division.assignments = division.assignments.filter((a) => a.id !== assignmentId)
       }
       saveDb(db)
       return delay(undefined)
@@ -429,10 +506,24 @@ export function createMockApi(): ScoringApi {
     async addPlayer(divisionId, number, name) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
+      assertContestWritable(found.contest, db.sessionUserId)
       const player: Player = { id: uid('p'), divisionId, number, name }
       found.division.players.push(player)
       saveDb(db)
       return delay(player)
+    },
+
+    async removePlayer(divisionId, playerId) {
+      const found = findDivision(db, divisionId)
+      if (!found) throw new Error('division not found')
+      assertContestWritable(found.contest, db.sessionUserId)
+      found.division.players = found.division.players.filter((p) => p.id !== playerId)
+      for (const stage of Object.keys(found.division.scores) as ScoringStage[]) {
+        const list = found.division.scores[stage]
+        if (list) found.division.scores[stage] = list.filter((s) => s.playerId !== playerId)
+      }
+      saveDb(db)
+      return delay(undefined)
     },
 
     async getRawScores(divisionId, stage) {
@@ -445,7 +536,7 @@ export function createMockApi(): ScoringApi {
     async submitClickerScore(divisionId, stage, playerId, slot, score: ClickerInput) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
-      assertScoreWritable(db, found.contest, found.division, stage)
+      assertSlotScoreWritable(found.contest, found.division, stage, 'clicker', slot, db.sessionUserId)
       const raw = rawScoresFor(found.division, stage, playerId)
       raw.clickers[slot] = score
       saveDb(db)
@@ -455,7 +546,7 @@ export function createMockApi(): ScoringApi {
     async submitDeductions(divisionId, stage, playerId, deductions) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
-      assertScoreWritable(db, found.contest, found.division, stage)
+      assertDeductionsWritable(found.contest, found.division, stage, db.sessionUserId)
       const raw = rawScoresFor(found.division, stage, playerId)
       raw.deductions = deductions
       saveDb(db)
@@ -465,7 +556,7 @@ export function createMockApi(): ScoringApi {
     async submitEvalScore(divisionId, stage, playerId, slot, scores) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
-      assertScoreWritable(db, found.contest, found.division, stage)
+      assertSlotScoreWritable(found.contest, found.division, stage, 'evaluator', slot, db.sessionUserId)
       const raw = rawScoresFor(found.division, stage, playerId)
       raw.evals[slot] = scores
       saveDb(db)

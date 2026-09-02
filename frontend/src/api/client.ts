@@ -32,9 +32,17 @@ export interface ScoringApi {
   createContest(name: string, year: number, ownerUserId: string): Promise<Contest>
   addDivision(contestId: string, name: string, stages: ScoringStage[]): Promise<Division>
   updateDivisionStages(contestId: string, divisionId: string, stages: ScoringStage[]): Promise<Division>
-  // Head-judge-only: freeze/unfreeze a division's stage so only the
-  // contest owner (not other judges) can still submit scores for it.
-  setDivisionStageLock(divisionId: string, stage: ScoringStage, locked: boolean): Promise<Division>
+  // Owner or head judge only. Refuses (throws) if the division still has
+  // players — remove them all first.
+  deleteDivision(contestId: string, divisionId: string): Promise<void>
+  // Head-judge-only: freeze/unfreeze the *entire* contest (every division,
+  // stage, score, player, and judge) against writes from anyone, including
+  // the head judge themself — only this toggle stays callable while locked.
+  setContestLocked(contestId: string, locked: boolean): Promise<Contest>
+  // Owner or head judge only: hand head-judge privileges to another judge
+  // already invited to this contest (or back to the owner). The owner
+  // role itself never moves.
+  transferHeadJudge(contestId: string, userId: string): Promise<Contest>
 
   // Judges
   listJudgeAssignments(contestId: string): Promise<JudgeAssignment[]>
@@ -42,6 +50,7 @@ export interface ScoringApi {
   // if no user exists with that email yet, one is created with no name set
   // (an "unclaimed" placeholder), so the invite is already waiting for them
   // the first time they actually log in with that email/Google account.
+  // Owner or head judge only.
   inviteJudge(
     contestId: string,
     divisionId: string,
@@ -50,11 +59,15 @@ export interface ScoringApi {
     role: JudgeRole,
     slot: number,
   ): Promise<JudgeAssignment>
+  // Owner or head judge only.
   removeJudgeAssignment(contestId: string, assignmentId: string): Promise<void>
 
   // Players
   listPlayers(divisionId: string): Promise<Player[]>
+  // Owner or head judge only.
   addPlayer(divisionId: string, number: number, name: string): Promise<Player>
+  // Owner or head judge only.
+  removePlayer(divisionId: string, playerId: string): Promise<void>
 
   // Scoring
   getRawScores(divisionId: string, stage: ScoringStage): Promise<PlayerRawScores[]>

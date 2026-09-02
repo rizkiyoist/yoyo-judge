@@ -1,8 +1,8 @@
 # Progress Summary
 
-_Last updated: 2026-09-02 (contest visibility opened to all judges; real
-server-side score-write authorization; head-judge stage locking; owner-only
-invite/remove judge, including a cross-contest deletion fix)_
+_Last updated: 2026-09-02 (owner vs. transferable head judge; whole-contest
+lock replaces the earlier per-stage lock; division/player deletion;
+eval-score scale fixed to real 0-10, verified against the source xlsx)_
 
 ## Resuming on a new machine
 
@@ -705,6 +705,14 @@ is already waiting for them the first time they do.
 
 ### Contest visibility, real score-write authorization, head-judge stage locking — new, 2026-09-02
 
+**Superseded (later the same day) — see "Owner vs. head judge, whole-contest
+lock..." below.** The per-division-stage lock described in this section was
+replaced with a single whole-contest lock once the actual intended
+semantics came out in conversation ("a locked contest can't be changed:
+division, score, player, judge list" — much broader than "lock one stage's
+scores"). The visibility change and the score-write-authorization gap fix
+below are still accurate and unchanged; only the lock model changed.
+
 Previously `listContestsForUser` filtered the contest list to just the ones
 a user owned or was invited to, but critically **no score-submission
 endpoint checked who was calling it at all** — any authenticated user could
@@ -733,7 +741,7 @@ a stage's scores.
   `handleSubmitEvalScore` in `server/handlers.go` now call these before
   writing, returning `403` (wrong/no assignment) or `423 Locked` (see
   below) instead of silently succeeding.
-- **Head-judge stage locking**: `DBDivision` gained a `LockedStages` JSON
+- **Head-judge stage locking (superseded, see below)**: `DBDivision` gained a `LockedStages` JSON
   column (`server/db_models.go`, auto-migrated — no manual migration step
   needed, GORM's `AutoMigrate` adds the column to existing `yoyojudge.db`
   files on next startup); `Division.lockedStages: ScoringStage[]` mirrors
@@ -773,6 +781,11 @@ a stage's scores.
 
 ### Owner-only invite/remove judge, plus a cross-contest deletion fix — new, 2026-09-02
 
+**Superseded (later the same day)**: "owner-only" here became "owner **or**
+head judge" once head judge became a real, separately-transferable role
+(see "Owner vs. head judge..." below) — the cross-contest deletion fix
+itself is unaffected and still stands as originally described.
+
 Closed the invite/remove half of the gap flagged just above (division
 management — `handleAddDivision`/`handleUpdateDivisionStages` — is still
 open, see "What's not implemented yet").
@@ -802,13 +815,165 @@ open, see "What's not implemented yet").
   afterward; the real owner's own deletion, same assignment, correct
   contest ID, succeeded (`204`).
 
+### Owner vs. head judge, whole-contest lock, division/player deletion, eval-score scale fix — new, 2026-09-02
+
+A large role/permission rework, done as three rounds of clarifying
+questions (worth reading the actual conversation if this section is ever
+confusing — the model went through a couple of real course-corrections):
+first "owner" and "head judge" turned out to be two separate, transferable
+concepts, not one; then "lock a stage's scores" turned out to mean "lock
+the *entire contest*, everything, for *everyone including the head judge*
+until unlocked" — much broader than the per-stage lock built earlier the
+same day (see the two superseded sections above). Also closed out division
+deletion (didn't exist before at all), player removal (ditto), and a
+real scoring-input bug caught by cross-checking against the actual xlsx.
+
+**Owner vs. head judge — now genuinely separate roles:**
+- `DBContest` gained `HeadJudgeUserID` (`server/db_models.go`,
+  auto-migrated) — defaults to the owner at contest creation
+  (`createContest`), but is transferable independently. `OwnerUserID`
+  never changes once set; `Contest.headJudgeUserId`/`ownerUserId` both
+  surface on the frontend (`types.ts`). Verified (see below) that
+  `AutoMigrate` adds this column cleanly to a database created before it
+  existed, and that `dbContestToContest`'s fallback (empty
+  `HeadJudgeUserID` → treat as the owner) keeps pre-existing contests
+  working exactly as before.
+- New endpoint `PATCH /contests/{contestId}/head-judge` (body
+  `{"userId"}`, `handleTransferHeadJudge`/`transferHeadJudge` in
+  `store.go`) hands head-judge privileges to any user who is either the
+  contest's owner or already holds a judge assignment somewhere in the
+  contest — `400` for anyone else, so a stranger can't be handed control
+  of a contest they have nothing to do with. Callable by the owner *or*
+  the current head judge (so head-judgeship can be passed along a chain,
+  not just handed back by the owner).
+- **The exact permission split**, matching the role table worked out in
+  conversation:
+  - **Owner or head judge** (`isOwnerOrHeadJudge`/`authorizeContestWrite`
+    in `store.go`): invite/remove judges, add/remove divisions, add/remove
+    players, transfer head-judge status.
+  - **Head judge only** (`isHeadJudge`): lock/unlock the contest, and
+    override any judge's score (submitting a clicker/eval score for a slot
+    you're not assigned to, or a deduction without being assigned at all —
+    this is what makes `ScoreOverrideView.vue`'s "act as any judge" work).
+    The owner does **not** get this once head-judge status has been
+    transferred away — a deliberate consequence of the role table as
+    written, called out explicitly during the conversation rather than
+    assumed.
+  - **Normal judge** (anyone with a `JudgeAssignment`): submit a
+    clicker/eval score for their own assigned slot; submit major
+    deductions for that division+stage — **broadened to any assigned
+    judge, clicker or evaluator**, not just clickers (see "eval-score
+    scale" note below for why: one player has one shared deduction value
+    regardless of how many judges, of either role, are watching them).
+    This also meant fixing four frontend views
+    (`ScoreEntryView`/`ScoreOverrideView`) to actually expose deduction
+    inputs to eval-only judges, not just clicker judges, since the old UI
+    only ever showed deductions inside the clicker judge's table.
+- `JudgeManagementView.vue` gained a "Head judge" card: shows who currently
+  holds it (bolded/badged distinctly from the owner in the assignment
+  tables — `isOwnerUserId`/`isHeadJudgeUserId`), and a dropdown + button to
+  transfer it to the owner or any currently-invited judge.
+
+**Whole-contest lock — replaces the per-division-stage lock built earlier
+today:**
+- `DBContest.Locked bool` (auto-migrated, defaults `false`). Freezes
+  **everything** in the contest — every division, stage, player, judge,
+  and score — against writes from **anyone, including the head judge
+  themself**; the lock/unlock toggle is the one call that's deliberately
+  exempt (`handleSetContestLock` doesn't route through
+  `authorizeContestWrite`'s own-lock check), or a locked contest could
+  never be unlocked. Confirmed explicitly in conversation: this is *not*
+  "the head judge can still edit through the lock" (that was the original,
+  smaller-scoped design) — locking really does mean nobody touches
+  anything until it's unlocked again.
+- New endpoint `PATCH /contests/{contestId}/lock` (body `{"locked"}`,
+  `handleSetContestLock`) — head-judge-only, `403` otherwise.
+- `store.go`'s `authorizeSlotScoreWrite`/`authorizeDeductionsWrite`/
+  `authorizeContestWrite` all check `isContestLocked` **first**, before any
+  role check, so a lock genuinely blocks the head judge too — the earlier
+  per-stage design's "head judge is exempt" branch is gone.
+- Frontend: `Contest.locked` (`types.ts`), `ScoringApi.setContestLocked`
+  replaces the removed `setDivisionStageLock` throughout
+  `client.ts`/`http.ts`/`mock.ts` (mock's `assertContestWritable`/
+  `assertSlotScoreWritable`/`assertDeductionsWritable` mirror the same
+  "locked blocks everyone, no head-judge exemption" rule). `🔒 This contest
+  is locked` banners (disabling the relevant inputs/buttons) now appear on
+  `ScoreEntryView`, `ScoreOverrideView`, `ContestEditView`, and
+  `PlayerRosterView`; the actual lock/unlock control lives on
+  `JudgeManagementView.vue` (head-judge-only).
+
+**Division and player deletion — didn't exist before at all:**
+- `DELETE /contests/{contestId}/divisions/{divisionId}`
+  (`handleDeleteDivision`/`deleteDivision`) — owner or head judge, blocked
+  by the contest lock like everything else, and refuses (`409`) if the
+  division still has any players, with a message telling the caller to
+  remove them first. Also cleans up the division's judge assignments and
+  any raw-score rows so nothing is left orphaned.
+- `DELETE /divisions/{divisionId}/players/{playerId}`
+  (`handleRemovePlayer`/`removePlayer`) — same authorization, deletes the
+  player and their raw scores for both stages.
+- Frontend: `ContestEditView.vue` now shows a player count per division and
+  a disabled-with-tooltip "Delete" button when that count is `>0`;
+  `PlayerRosterView.vue` gained a "Remove" button per player (with a
+  confirm dialog warning their scores go too).
+
+**Eval-score input scale bug — 0-10 whole numbers, not 0-5/0-10 in 0.5
+steps:** reported directly ("when adding pev score it should be in
+increment of 1, from 1 to 10" → clarified to 0-10 after some back-and-forth
+about whether this touched the FINAL stage's calc engine at all). It did
+touch it, sort of — but only a UI/metadata bug, not the arithmetic:
+- **What was actually wrong**: `library/calc/stage.go`'s `FinalCategories()`
+  had `MaxValue: 5` (PRELIM's already used the correct `MaxValue: 10`).
+  `MaxValue` only ever feeds the frontend input widget's `max` attribute —
+  `rules.go`'s `Calculate()` never reads it — so this was purely "the UI
+  wrongly capped FINAL category inputs at 5 and let 0.5 steps through,"
+  not a bug in how scores were computed from whatever was typed in.
+- **Independently verified against the real workbook**, not just taken on
+  the user's word: opened `IYYF-SCORE-CALC-FINAL-2017.xlsx` with excelize,
+  wrote the exact input values from `rules_test.go`'s hand-verified FINAL
+  test case directly into the real sheet cells, and used excelize's
+  `CalcCellValue` to force genuine formula recalculation (not just read
+  cached values) — every output (T.Ex, T.Ev/P.Ev totals, E.Total, final
+  score, place) matched the Go engine exactly. Separately, the
+  `FINAL-SCORE` sheet's own header (`T.Ev total (/20)`, 4 categories) only
+  arithmetically works out if the raw per-category input goes up to 10 (10
+  ÷ 2 × 4 = 20); the old 0-5 assumption would cap the group at 10, not 20 —
+  independent confirmation from the workbook's own structure, not just the
+  formula chain.
+- **Fix**: `FinalCategories()`'s `MaxValue` changed `5` → `10` (all 8
+  categories) in both `library/calc/stage.go` and its frontend TS mirror
+  `frontend/src/lib/scoring.ts` — the `Halve: true` div-by-2 step is
+  untouched and correct as-is now that the input feeding it is the right
+  scale. `ScoreEntryView.vue`/`ScoreOverrideView.vue`'s eval score inputs
+  changed `step="0.5"` → `step="1"` (min was already `0`, max was already
+  bound to `cat.maxValue`, so fixing that one number fixed both stages'
+  widgets at once). No calc-engine or test-assertion changes were needed —
+  `rules_test.go`/`scoring.test.ts`'s numeric assertions were never wrong,
+  only what "scale" the numbers going in were supposed to represent.
+- **Major deduction entry vs. the source workbook, for context**: in the
+  original `.xls`, Stop/Discard/Cut live on the `Raw-TEx` sheet — one
+  shared cell per player, same sheet as the clicker judges' input, not the
+  eval sheet — so historically it was implicitly "a clicker judge's job."
+  The app already matched the "one shared value per player" part; letting
+  *any* assigned judge (not just clickers) submit it, per this round's
+  role-table work above, is a deliberate product decision diverging from
+  that old convention, not a correctness fix.
+- Verified: `go test ./library/calc/...` and the frontend `vitest` suite
+  both still pass unchanged (confirming no calc-engine behavior actually
+  changed); a throwaway Go test simulating a pre-migration `db_contests`
+  table (missing `HeadJudgeUserID`/`Locked`) confirmed `AutoMigrate` adds
+  both columns cleanly against a real SQLite file, deleted after passing.
+  Full end-to-end role/lock/deletion flow re-verified against the compiled
+  binary: default head judge = owner; transfer moved lock/override
+  privilege but left `ownerUserId` untouched; the *old* owner got `403`
+  trying to lock after transfer while the *new* head judge succeeded;
+  locking blocked the head judge's own score submission (`423`) until they
+  unlocked; division deletion was blocked (`409`) with a player present and
+  succeeded (`204`) after removing them; transferring head-judge status to
+  an uninvited stranger was rejected (`400`).
+
 ## What's not implemented yet
 
-- No server-side owner check on `handleAddDivision` or
-  `handleUpdateDivisionStages` — only client-side
-  `isOwner` gating in the Vue views. Contest visibility is now repo-wide
-  (see "Contest visibility..." above), which makes this more worth closing
-  than it used to be.
 - `handler/input.go`'s structs (`SetUp`, `Player`, `RawTex`, `RawPev`) aren't
   mapped to `calc.PlayerInput`/`calc.Contest` or connected to `server/`,
   `request/`, or any controller/usecase layer. These predate `server/` and

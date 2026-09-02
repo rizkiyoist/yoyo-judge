@@ -18,16 +18,21 @@ export interface Division {
   contestId: string
   name: string
   stages: ScoringStage[]
-  // Stages the head judge has frozen — no one but the contest owner can
-  // submit clicker/eval/deduction scores for a locked stage.
-  lockedStages: ScoringStage[]
 }
 
 export interface Contest {
   id: string
   name: string
   year: number
+  // Permanent creator — never changes. Distinct from headJudgeUserId,
+  // which the owner (or the current head judge) can transfer to any
+  // invited judge; the owner defaults to being the head judge too.
   ownerUserId: string
+  headJudgeUserId: string
+  // Freezes the whole contest (all divisions/scores/players/judges)
+  // against writes, including by the head judge — only unlocking is
+  // exempt. Toggled by the current head judge only.
+  locked: boolean
   divisions: Division[]
 }
 

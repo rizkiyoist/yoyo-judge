@@ -18,7 +18,13 @@ const selectedStage = ref<ScoringStage>('final')
 const selectedRole = ref<JudgeRole>('clicker')
 const selectedSlot = ref(1)
 
-const isOwner = computed(() => contest.value?.ownerUserId === auth.user?.id)
+const isOwnerUser = computed(() => contest.value?.ownerUserId === auth.user?.id)
+const isCurrentHeadJudge = computed(() => contest.value?.headJudgeUserId === auth.user?.id)
+// Inviting/removing judges, adding/removing divisions & players, and
+// transferring head-judge status are shared by the owner and the current
+// head judge; locking/unlocking is head-judge-only (see role table in
+// docs/PROGRESS.md).
+const canManage = computed(() => isOwnerUser.value || isCurrentHeadJudge.value)
 const selectedDivision = computed(() => contest.value?.divisions.find((d) => d.id === selectedDivisionId.value))
 
 function stageLabel(stage: ScoringStage): string {
@@ -96,8 +102,55 @@ function userLabel(userId: string): string {
   return name ? `${name} (${u.email})` : `${u.email} (not signed in yet)`
 }
 
-function isHeadJudge(userId: string): boolean {
+function isOwnerUserId(userId: string): boolean {
   return userId === contest.value?.ownerUserId
+}
+
+function isHeadJudgeUserId(userId: string): boolean {
+  return userId === contest.value?.headJudgeUserId
+}
+
+const lockToggling = ref(false)
+const lockError = ref('')
+
+async function toggleLock() {
+  if (!contest.value) return
+  lockToggling.value = true
+  lockError.value = ''
+  try {
+    await api.setContestLocked(contest.value.id, !contest.value.locked)
+    await load()
+  } catch (e) {
+    lockError.value = e instanceof Error ? e.message : 'Failed to update lock'
+  } finally {
+    lockToggling.value = false
+  }
+}
+
+// Anyone eligible to receive head-judge status: the owner, plus every
+// distinct judge currently assigned somewhere in this contest.
+const headJudgeCandidates = computed(() => {
+  if (!contest.value) return []
+  const ids = new Set(assignments.value.map((a) => a.userId))
+  ids.add(contest.value.ownerUserId)
+  return [...ids]
+})
+const transferTargetId = ref('')
+const transferring = ref(false)
+const transferError = ref('')
+
+async function transferHeadJudge() {
+  if (!contest.value || !transferTargetId.value) return
+  transferring.value = true
+  transferError.value = ''
+  try {
+    await api.transferHeadJudge(contest.value.id, transferTargetId.value)
+    await load()
+  } catch (e) {
+    transferError.value = e instanceof Error ? e.message : 'Failed to transfer head judge'
+  } finally {
+    transferring.value = false
+  }
 }
 
 const assignmentsForSelection = computed(() =>
@@ -115,9 +168,44 @@ const evalAssignments = computed(() =>
   <div v-if="contest">
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — Judges</h1>
-    <p v-if="!isOwner" class="muted">Only the head judge who created this contest can invite judges.</p>
+    <p v-if="!canManage" class="muted">Only the contest owner or head judge can manage judges.</p>
+    <p v-if="contest.locked" class="error">
+      🔒 This contest is locked. {{ isCurrentHeadJudge ? 'Unlock it below to make changes.' : 'Only the head judge can unlock it.' }}
+    </p>
 
-    <div v-if="isOwner" class="card">
+    <div v-if="isCurrentHeadJudge" class="card">
+      <h2>Lock / unlock this contest</h2>
+      <p class="muted">
+        Locking freezes everything in this contest — divisions, players, judges, and all scores — against changes
+        by anyone, including you, until you unlock it again.
+      </p>
+      <button :class="{ primary: !contest.locked }" :disabled="lockToggling" @click="toggleLock">
+        {{ lockToggling ? 'Working…' : contest.locked ? 'Unlock contest' : 'Lock contest' }}
+      </button>
+      <span v-if="lockError" class="error">{{ lockError }}</span>
+    </div>
+
+    <div v-if="canManage" class="card">
+      <h2>Head judge</h2>
+      <p class="muted">
+        Currently: <strong>{{ userLabel(contest.headJudgeUserId) }}</strong
+        ><template v-if="isOwnerUserId(contest.headJudgeUserId)"> (also the contest owner)</template>.
+        The owner ({{ userLabel(contest.ownerUserId) }}) never changes, but head-judge privileges — locking,
+        overriding scores, and managing judges/divisions/players — can be handed to any invited judge.
+      </p>
+      <div class="row">
+        <select v-model="transferTargetId" :disabled="contest.locked">
+          <option value="" disabled>Choose a judge…</option>
+          <option v-for="uid in headJudgeCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
+        </select>
+        <button :disabled="!transferTargetId || contest.locked || transferring" @click="transferHeadJudge">
+          {{ transferring ? 'Working…' : 'Make head judge' }}
+        </button>
+      </div>
+      <span v-if="transferError" class="error">{{ transferError }}</span>
+    </div>
+
+    <div v-if="canManage && !contest.locked" class="card">
       <h2>Invite a judge</h2>
       <div class="row">
         <div class="field">
@@ -184,17 +272,18 @@ const evalAssignments = computed(() =>
               <tr>
                 <th>Slot</th>
                 <th>Judge</th>
-                <th v-if="isOwner"></th>
+                <th v-if="canManage"></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="a in clickerAssignments" :key="a.id">
                 <td>{{ a.slot }}</td>
                 <td>
-                  <strong v-if="isHeadJudge(a.userId)">{{ userLabel(a.userId) }}</strong>
+                  <strong v-if="isOwnerUserId(a.userId)">{{ userLabel(a.userId) }}</strong>
                   <template v-else>{{ userLabel(a.userId) }}</template>
+                  <span v-if="isHeadJudgeUserId(a.userId)" class="badge">Head Judge</span>
                 </td>
-                <td v-if="isOwner"><button class="danger" @click="remove(a)">Remove</button></td>
+                <td v-if="canManage"><button class="danger" :disabled="contest.locked" @click="remove(a)">Remove</button></td>
               </tr>
             </tbody>
           </table>
@@ -208,17 +297,18 @@ const evalAssignments = computed(() =>
               <tr>
                 <th>Slot</th>
                 <th>Judge</th>
-                <th v-if="isOwner"></th>
+                <th v-if="canManage"></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="a in evalAssignments" :key="a.id">
                 <td>{{ a.slot }}</td>
                 <td>
-                  <strong v-if="isHeadJudge(a.userId)">{{ userLabel(a.userId) }}</strong>
+                  <strong v-if="isOwnerUserId(a.userId)">{{ userLabel(a.userId) }}</strong>
                   <template v-else>{{ userLabel(a.userId) }}</template>
+                  <span v-if="isHeadJudgeUserId(a.userId)" class="badge">Head Judge</span>
                 </td>
-                <td v-if="isOwner"><button class="danger" @click="remove(a)">Remove</button></td>
+                <td v-if="canManage"><button class="danger" :disabled="contest.locked" @click="remove(a)">Remove</button></td>
               </tr>
             </tbody>
           </table>

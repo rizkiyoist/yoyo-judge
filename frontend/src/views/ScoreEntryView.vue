@@ -15,11 +15,11 @@ const rawScores = ref<PlayerRawScores[]>([])
 const saving = ref<Record<string, boolean>>({})
 
 const division = computed(() => contest.value?.divisions.find((d) => d.id === props.divisionId))
-const isOwner = computed(() => contest.value?.ownerUserId === auth.user?.id)
-const stageLocked = computed(() => division.value?.lockedStages.includes(props.stage) ?? false)
-// The owner is exempt from the lock (that's the whole point of locking —
-// stopping *other* judges; the head judge can still fix things via override).
-const inputsDisabled = computed(() => stageLocked.value && !isOwner.value)
+const isHeadJudge = computed(() => contest.value?.headJudgeUserId === auth.user?.id)
+// Locking freezes the whole contest for everyone, including the head
+// judge themself — they have to unlock (from the Judges page) before
+// anyone, themself included, can submit or override scores again.
+const inputsDisabled = computed(() => contest.value?.locked ?? false)
 
 const myAssignments = computed(() =>
   assignments.value.filter(
@@ -28,6 +28,9 @@ const myAssignments = computed(() =>
 )
 const myClickerAssignment = computed(() => myAssignments.value.find((a) => a.role === 'clicker'))
 const myEvalAssignment = computed(() => myAssignments.value.find((a) => a.role === 'evaluator'))
+// Any assigned judge (clicker or evaluator) may record major deductions —
+// one shared value per player, not per judge.
+const canEditDeductions = computed(() => myAssignments.value.length > 0)
 
 const categories = computed(() => (props.stage === 'prelim' ? prelimCategories() : finalCategories()))
 const thirdDeductionLabel = computed(() => (props.stage === 'prelim' ? 'Detach' : 'Cut'))
@@ -45,22 +48,6 @@ function rawFor(playerId: string): PlayerRawScores | undefined {
   return rawScores.value.find((r) => r.playerId === playerId)
 }
 
-const lockToggling = ref(false)
-const lockError = ref('')
-
-async function toggleLock() {
-  lockToggling.value = true
-  lockError.value = ''
-  try {
-    await api.setDivisionStageLock(props.divisionId, props.stage, !stageLocked.value)
-    await load()
-  } catch (e) {
-    lockError.value = e instanceof Error ? e.message : 'Failed to update lock'
-  } finally {
-    lockToggling.value = false
-  }
-}
-
 async function saveClicker(playerId: string, field: 'plus' | 'minus', value: number) {
   if (!myClickerAssignment.value || inputsDisabled.value) return
   const slot = myClickerAssignment.value.slot
@@ -76,7 +63,7 @@ async function saveClicker(playerId: string, field: 'plus' | 'minus', value: num
 }
 
 async function saveDeduction(playerId: string, field: 'stop' | 'discard' | 'cut', value: number) {
-  if (inputsDisabled.value) return
+  if (inputsDisabled.value || !canEditDeductions.value) return
   const existing = rawFor(playerId)?.deductions ?? { stop: 0, discard: 0, cut: 0 }
   const next = { ...existing, [field]: value }
   saving.value[playerId] = true
@@ -108,18 +95,14 @@ async function saveEval(playerId: string, category: string, value: number) {
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) scoring</h1>
 
-    <p v-if="isOwner" class="row" style="align-items: center">
+    <p v-if="isHeadJudge" class="row" style="align-items: center">
       <RouterLink :to="{ name: 'score-override', params: { contestId, divisionId, stage } }">
         <button>Head judge: override any judge's score</button>
       </RouterLink>
-      <button :class="{ primary: !stageLocked }" :disabled="lockToggling" @click="toggleLock">
-        {{ lockToggling ? 'Working…' : stageLocked ? 'Unlock scores' : 'Lock scores' }}
-      </button>
-      <span v-if="lockError" class="error">{{ lockError }}</span>
     </p>
 
-    <p v-if="stageLocked" class="muted">
-      🔒 Scores for this stage are locked by the head judge{{ isOwner ? '' : ' and can no longer be changed' }}.
+    <p v-if="contest.locked" class="error">
+      🔒 This contest is locked — go to the Judges page to unlock it before any scores can change.
     </p>
 
     <p v-if="!myAssignments.length" class="muted">
@@ -199,6 +182,11 @@ async function saveEval(playerId: string, category: string, value: number) {
             <th>#</th>
             <th>Player</th>
             <th v-for="cat in categories" :key="cat.name">{{ cat.name }} (max {{ cat.maxValue }})</th>
+            <template v-if="!myClickerAssignment">
+              <th>Stop</th>
+              <th>Discard</th>
+              <th>{{ thirdDeductionLabel }}</th>
+            </template>
           </tr>
         </thead>
         <tbody>
@@ -207,15 +195,42 @@ async function saveEval(playerId: string, category: string, value: number) {
             <td>{{ p.name }}</td>
             <td v-for="cat in categories" :key="cat.name">
               <input
-                type="number" min="0" :max="cat.maxValue" step="0.5" style="width: 70px"
+                type="number" min="0" :max="cat.maxValue" step="1" style="width: 70px"
                 :value="rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? 0"
                 @change="saveEval(p.id, cat.name, +($event.target as HTMLInputElement).value)"
               />
             </td>
+            <template v-if="!myClickerAssignment">
+              <td>
+                <input
+                  type="number" min="0" style="width: 70px"
+                  :value="rawFor(p.id)?.deductions.stop ?? 0"
+                  @change="saveDeduction(p.id, 'stop', +($event.target as HTMLInputElement).value)"
+                />
+              </td>
+              <td>
+                <input
+                  type="number" min="0" style="width: 70px"
+                  :value="rawFor(p.id)?.deductions.discard ?? 0"
+                  @change="saveDeduction(p.id, 'discard', +($event.target as HTMLInputElement).value)"
+                />
+              </td>
+              <td>
+                <input
+                  type="number" min="0" style="width: 70px"
+                  :value="rawFor(p.id)?.deductions.cut ?? 0"
+                  @change="saveDeduction(p.id, 'cut', +($event.target as HTMLInputElement).value)"
+                />
+              </td>
+            </template>
           </tr>
         </tbody>
       </table>
       </fieldset>
+      <p v-if="!myClickerAssignment" class="muted">
+        Major deductions (Stop/Discard/{{ thirdDeductionLabel }}) apply once per player — coordinate with the other
+        judges so they aren't entered twice.
+      </p>
     </div>
 
     <p v-if="players.length === 0" class="muted">No players in this division yet.</p>

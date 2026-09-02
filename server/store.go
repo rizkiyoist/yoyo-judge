@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"time"
 
 	"gorm.io/gorm"
@@ -209,7 +208,18 @@ func (s *Store) dbContestToContest(c DBContest) Contest {
 	for i, d := range divs {
 		divisions[i] = dbDivisionToDivision(d)
 	}
-	return Contest{ID: c.ID, Name: c.Name, Year: c.Year, OwnerUserID: c.OwnerUserID, Divisions: divisions}
+	headJudgeUserID := c.HeadJudgeUserID
+	if headJudgeUserID == "" {
+		// Rows created before HeadJudgeUserID existed (or otherwise never
+		// set) default to the owner — the owner is the head judge until
+		// explicitly transferred.
+		headJudgeUserID = c.OwnerUserID
+	}
+	return Contest{
+		ID: c.ID, Name: c.Name, Year: c.Year,
+		OwnerUserID: c.OwnerUserID, HeadJudgeUserID: headJudgeUserID, Locked: c.Locked,
+		Divisions: divisions,
+	}
 }
 
 func (s *Store) getContest(contestID string) (Contest, bool) {
@@ -221,9 +231,89 @@ func (s *Store) getContest(contestID string) (Contest, bool) {
 }
 
 func (s *Store) createContest(name string, year int, ownerUserID string) Contest {
-	c := DBContest{ID: newID("c"), Name: name, Year: year, OwnerUserID: ownerUserID}
+	c := DBContest{ID: newID("c"), Name: name, Year: year, OwnerUserID: ownerUserID, HeadJudgeUserID: ownerUserID}
 	s.db.Create(&c)
-	return Contest{ID: c.ID, Name: c.Name, Year: c.Year, OwnerUserID: c.OwnerUserID, Divisions: []Division{}}
+	return s.dbContestToContest(c)
+}
+
+// isContestOwner reports whether userID created contestID. The owner never
+// changes and is distinct from the head judge once transferred — see
+// isHeadJudge and transferHeadJudge.
+func (s *Store) isContestOwner(contestID, userID string) bool {
+	var c DBContest
+	if s.db.Select("owner_user_id").First(&c, "id = ?", contestID).Error != nil {
+		return false
+	}
+	return c.OwnerUserID == userID
+}
+
+// isHeadJudge reports whether userID currently holds head-judge privileges
+// for contestID — the owner by default, or whoever it's been transferred
+// to (see transferHeadJudge). Locking/unlocking and overriding any judge's
+// score are head-judge-only, even the owner can't do them once transferred
+// away.
+func (s *Store) isHeadJudge(contestID, userID string) bool {
+	var c DBContest
+	if s.db.First(&c, "id = ?", contestID).Error != nil {
+		return false
+	}
+	headJudgeUserID := c.HeadJudgeUserID
+	if headJudgeUserID == "" {
+		headJudgeUserID = c.OwnerUserID
+	}
+	return headJudgeUserID == userID
+}
+
+// isOwnerOrHeadJudge covers the abilities shared by both roles: inviting/
+// removing judges, adding/removing divisions, adding/removing players, and
+// transferring head-judge status.
+func (s *Store) isOwnerOrHeadJudge(contestID, userID string) bool {
+	return s.isContestOwner(contestID, userID) || s.isHeadJudge(contestID, userID)
+}
+
+// isContestLocked reports whether contestID is currently frozen — see
+// DBContest.Locked's doc comment. Used to reject every mutating endpoint
+// except the lock/unlock toggle itself.
+func (s *Store) isContestLocked(contestID string) bool {
+	var c DBContest
+	if s.db.Select("locked").First(&c, "id = ?", contestID).Error != nil {
+		return false
+	}
+	return c.Locked
+}
+
+// setContestLocked toggles the whole-contest lock. Only the caller
+// (handleSetContestLock) restricts this to the head judge; this just
+// writes the flag.
+func (s *Store) setContestLocked(contestID string, locked bool) (Contest, bool) {
+	res := s.db.Model(&DBContest{}).Where("id = ?", contestID).Update("locked", locked)
+	if res.RowsAffected == 0 {
+		return Contest{}, false
+	}
+	c, ok := s.getContest(contestID)
+	return c, ok
+}
+
+// transferHeadJudge reassigns head-judge privileges to newHeadJudgeUserID,
+// which must be either the contest's owner or a judge already invited
+// somewhere in the contest — an arbitrary user can't be handed control of
+// a contest they have nothing to do with.
+func (s *Store) transferHeadJudge(contestID, newHeadJudgeUserID string) (Contest, int, string) {
+	if !s.isContestOwner(contestID, newHeadJudgeUserID) {
+		var count int64
+		s.db.Model(&DBJudgeAssignment{}).Where(
+			"contest_id = ? AND user_id = ?", contestID, newHeadJudgeUserID,
+		).Count(&count)
+		if count == 0 {
+			return Contest{}, http.StatusBadRequest, "the new head judge must be the contest owner or a judge already invited to this contest"
+		}
+	}
+	res := s.db.Model(&DBContest{}).Where("id = ?", contestID).Update("head_judge_user_id", newHeadJudgeUserID)
+	if res.RowsAffected == 0 {
+		return Contest{}, http.StatusNotFound, "contest not found"
+	}
+	c, _ := s.getContest(contestID)
+	return c, 0, ""
 }
 
 // --- divisions ---
@@ -231,58 +321,46 @@ func (s *Store) createContest(name string, year int, ownerUserID string) Contest
 func dbDivisionToDivision(d DBDivision) Division {
 	var stages []calc.ScoringStage
 	_ = json.Unmarshal([]byte(d.Stages), &stages)
-	var locked []calc.ScoringStage
-	_ = json.Unmarshal([]byte(d.LockedStages), &locked)
-	return Division{ID: d.ID, ContestID: d.ContestID, Name: d.Name, Stages: stages, LockedStages: nonNil(locked)}
+	return Division{ID: d.ID, ContestID: d.ContestID, Name: d.Name, Stages: stages}
 }
 
 func (s *Store) addDivision(contestID, name string, stages []calc.ScoringStage) Division {
 	b, _ := json.Marshal(stages)
-	d := DBDivision{ID: newID("d"), ContestID: contestID, Name: name, Stages: string(b), LockedStages: "[]"}
+	d := DBDivision{ID: newID("d"), ContestID: contestID, Name: name, Stages: string(b)}
 	s.db.Create(&d)
 	return dbDivisionToDivision(d)
 }
 
-// setDivisionStageLock freezes (or unfreezes) one stage of a division
-// against edits from anyone but the contest owner — see isStageLocked.
-// Returns false if the division doesn't belong to contestID.
-func (s *Store) setDivisionStageLock(contestID, divisionID string, stage calc.ScoringStage, locked bool) (Division, bool) {
-	var d DBDivision
-	if s.db.Where("id = ? AND contest_id = ?", divisionID, contestID).First(&d).Error != nil {
+func (s *Store) updateDivisionStages(contestID, divisionID string, stages []calc.ScoringStage) (Division, bool) {
+	b, _ := json.Marshal(stages)
+	res := s.db.Model(&DBDivision{}).
+		Where("id = ? AND contest_id = ?", divisionID, contestID).
+		Update("stages", string(b))
+	if res.RowsAffected == 0 {
 		return Division{}, false
 	}
-	var lockedStages []calc.ScoringStage
-	_ = json.Unmarshal([]byte(d.LockedStages), &lockedStages)
-	next := lockedStages[:0]
-	found := false
-	for _, s := range lockedStages {
-		if s == stage {
-			found = true
-			if locked {
-				next = append(next, s)
-			}
-			continue
-		}
-		next = append(next, s)
-	}
-	if locked && !found {
-		next = append(next, stage)
-	}
-	b, _ := json.Marshal(next)
-	s.db.Model(&d).Update("locked_stages", string(b))
-	d.LockedStages = string(b)
+	var d DBDivision
+	s.db.First(&d, "id = ?", divisionID)
 	return dbDivisionToDivision(d), true
 }
 
-// isStageLocked reports whether a division's stage is currently frozen.
-func (s *Store) isStageLocked(divisionID string, stage calc.ScoringStage) bool {
+// deleteDivision removes a division, refusing (409) if it still has any
+// players — the caller must remove them first. Also cleans up the
+// division's judge assignments so nothing is left orphaned.
+func (s *Store) deleteDivision(contestID, divisionID string) (status int, message string) {
 	var d DBDivision
-	if s.db.First(&d, "id = ?", divisionID).Error != nil {
-		return false
+	if s.db.Where("id = ? AND contest_id = ?", divisionID, contestID).First(&d).Error != nil {
+		return http.StatusNotFound, "division not found"
 	}
-	var lockedStages []calc.ScoringStage
-	_ = json.Unmarshal([]byte(d.LockedStages), &lockedStages)
-	return slices.Contains(lockedStages, stage)
+	var playerCount int64
+	s.db.Model(&DBPlayer{}).Where("division_id = ?", divisionID).Count(&playerCount)
+	if playerCount > 0 {
+		return http.StatusConflict, "this division still has players — remove them all before deleting the division"
+	}
+	s.db.Where("division_id = ?", divisionID).Delete(&DBJudgeAssignment{})
+	s.db.Where("division_id = ?", divisionID).Delete(&DBPlayerRawScore{})
+	s.db.Delete(&d)
+	return 0, ""
 }
 
 // divisionContestID resolves a division to its contest id, for
@@ -294,15 +372,6 @@ func (s *Store) divisionContestID(divisionID string) (string, bool) {
 		return "", false
 	}
 	return d.ContestID, true
-}
-
-// isContestOwner reports whether userID created contestID.
-func (s *Store) isContestOwner(contestID, userID string) bool {
-	var c DBContest
-	if s.db.Select("owner_user_id").First(&c, "id = ?", contestID).Error != nil {
-		return false
-	}
-	return c.OwnerUserID == userID
 }
 
 // isAssignedSlot reports whether userID is the judge assigned to exactly
@@ -317,35 +386,37 @@ func (s *Store) isAssignedSlot(divisionID string, stage calc.ScoringStage, role 
 	return count > 0
 }
 
-// isAssignedRole reports whether userID holds any slot of the given role
-// for this division+stage — used to authorize deductions, which any
-// clicker judge (not just one specific slot) may submit.
-func (s *Store) isAssignedRole(divisionID string, stage calc.ScoringStage, role JudgeRole, userID string) bool {
+// isAssignedAnyRole reports whether userID holds any slot (clicker or
+// evaluator) for this division+stage — used to authorize major
+// deductions, which any assigned judge (not just clickers, and not just
+// one specific slot) may submit; one player has one shared deduction
+// value regardless of how many judges are watching them.
+func (s *Store) isAssignedAnyRole(divisionID string, stage calc.ScoringStage, userID string) bool {
 	var count int64
 	s.db.Model(&DBJudgeAssignment{}).Where(
-		"division_id = ? AND stage = ? AND role = ? AND user_id = ?",
-		divisionID, string(stage), string(role), userID,
+		"division_id = ? AND stage = ? AND user_id = ?",
+		divisionID, string(stage), userID,
 	).Count(&count)
 	return count > 0
 }
 
 // authorizeSlotScoreWrite checks whether userID may submit a clicker/eval
-// score for exactly this division+stage+role+slot: the contest owner
-// always may (that's how the head-judge override page works, and locking
-// is specifically meant to stop *other* judges, not them); anyone else
-// must be the judge assigned to that slot, and only while the stage isn't
-// locked. Returns status 0 (proceed) or an HTTP status + message to reject
-// with.
+// score for exactly this division+stage+role+slot: a locked contest
+// rejects everyone, full stop, even the head judge (they must unlock
+// first); otherwise the head judge always may (that's both how the
+// override page works and the "override score" ability from the role
+// table), and anyone else must be the judge assigned to that exact slot.
+// Returns status 0 (proceed) or an HTTP status + message to reject with.
 func (s *Store) authorizeSlotScoreWrite(divisionID string, stage calc.ScoringStage, role JudgeRole, slot int, userID string) (status int, message string) {
 	contestID, found := s.divisionContestID(divisionID)
 	if !found {
 		return http.StatusNotFound, "division not found"
 	}
-	if s.isContestOwner(contestID, userID) {
-		return 0, ""
+	if s.isContestLocked(contestID) {
+		return http.StatusLocked, "this contest is locked"
 	}
-	if s.isStageLocked(divisionID, stage) {
-		return http.StatusLocked, "scores are locked by the head judge"
+	if s.isHeadJudge(contestID, userID) {
+		return 0, ""
 	}
 	if !s.isAssignedSlot(divisionID, stage, role, slot, userID) {
 		return http.StatusForbidden, "you are not the assigned judge for this slot"
@@ -354,36 +425,37 @@ func (s *Store) authorizeSlotScoreWrite(divisionID string, stage calc.ScoringSta
 }
 
 // authorizeDeductionsWrite is authorizeSlotScoreWrite's counterpart for
-// major deductions, which any clicker judge for the division+stage (not
-// just one specific slot) is allowed to record.
+// major deductions, which any judge assigned to the division+stage (any
+// role, not just one specific slot) is allowed to record.
 func (s *Store) authorizeDeductionsWrite(divisionID string, stage calc.ScoringStage, userID string) (status int, message string) {
 	contestID, found := s.divisionContestID(divisionID)
 	if !found {
 		return http.StatusNotFound, "division not found"
 	}
-	if s.isContestOwner(contestID, userID) {
+	if s.isContestLocked(contestID) {
+		return http.StatusLocked, "this contest is locked"
+	}
+	if s.isHeadJudge(contestID, userID) {
 		return 0, ""
 	}
-	if s.isStageLocked(divisionID, stage) {
-		return http.StatusLocked, "scores are locked by the head judge"
-	}
-	if !s.isAssignedRole(divisionID, stage, RoleClicker, userID) {
-		return http.StatusForbidden, "you are not a clicker judge for this division/stage"
+	if !s.isAssignedAnyRole(divisionID, stage, userID) {
+		return http.StatusForbidden, "you are not an assigned judge for this division/stage"
 	}
 	return 0, ""
 }
 
-func (s *Store) updateDivisionStages(contestID, divisionID string, stages []calc.ScoringStage) (Division, bool) {
-	b, _ := json.Marshal(stages)
-	res := s.db.Model(&DBDivision{}).
-		Where("id = ? AND contest_id = ?", divisionID, contestID).
-		Update("stages", string(b))
-	if res.RowsAffected == 0 {
-		return Division{}, false
+// authorizeContestWrite is the shared check for endpoints that add/remove
+// divisions, players, or judges, or transfer head-judge status: the
+// contest must not be locked, and the caller must be the owner or head
+// judge. Returns status 0 (proceed) or an HTTP status + message.
+func (s *Store) authorizeContestWrite(contestID, userID string) (status int, message string) {
+	if s.isContestLocked(contestID) {
+		return http.StatusLocked, "this contest is locked"
 	}
-	var d DBDivision
-	s.db.First(&d, "id = ?", divisionID)
-	return dbDivisionToDivision(d), true
+	if !s.isOwnerOrHeadJudge(contestID, userID) {
+		return http.StatusForbidden, "only the contest owner or head judge can do this"
+	}
+	return 0, ""
 }
 
 // --- judge assignments ---
@@ -443,6 +515,18 @@ func (s *Store) addPlayer(divisionID string, number int, name string) Player {
 	p := DBPlayer{ID: newID("p"), DivisionID: divisionID, Number: number, Name: name}
 	s.db.Create(&p)
 	return Player{ID: p.ID, DivisionID: p.DivisionID, Number: p.Number, Name: p.Name}
+}
+
+// removePlayer deletes a player and their raw scores (both stages),
+// scoped to divisionID so a player can't be deleted via the wrong
+// division. Reports whether a row was actually deleted.
+func (s *Store) removePlayer(divisionID, playerID string) bool {
+	res := s.db.Where("id = ? AND division_id = ?", playerID, divisionID).Delete(&DBPlayer{})
+	if res.RowsAffected == 0 {
+		return false
+	}
+	s.db.Where("division_id = ? AND player_id = ?", divisionID, playerID).Delete(&DBPlayerRawScore{})
+	return true
 }
 
 // --- raw scores ---

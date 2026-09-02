@@ -58,16 +58,20 @@ export interface PlayerResult {
 
 export const DEFAULT_CLICKER_VALUE = 60
 
+// Judges score each FINAL category 0-10, same input scale as PRELIM;
+// halving (dividing the averaged score by 2, in calculate() below) is what
+// differentiates FINAL from PRELIM, not the input's own range — maxValue
+// here is just the input widget's hint, not read by calculate().
 export function finalCategories(): EvalCategory[] {
   return [
-    { name: 'EXE', group: 'TEv', maxValue: 5, halve: true },
-    { name: 'CTL', group: 'TEv', maxValue: 5, halve: true },
-    { name: 'TDV', group: 'TEv', maxValue: 5, halve: true },
-    { name: 'SEM', group: 'TEv', maxValue: 5, halve: true },
-    { name: 'MU1', group: 'PEv', maxValue: 5, halve: true },
-    { name: 'MU2', group: 'PEv', maxValue: 5, halve: true },
-    { name: 'BDY', group: 'PEv', maxValue: 5, halve: true },
-    { name: 'SHW', group: 'PEv', maxValue: 5, halve: true },
+    { name: 'EXE', group: 'TEv', maxValue: 10, halve: true },
+    { name: 'CTL', group: 'TEv', maxValue: 10, halve: true },
+    { name: 'TDV', group: 'TEv', maxValue: 10, halve: true },
+    { name: 'SEM', group: 'TEv', maxValue: 10, halve: true },
+    { name: 'MU1', group: 'PEv', maxValue: 10, halve: true },
+    { name: 'MU2', group: 'PEv', maxValue: 10, halve: true },
+    { name: 'BDY', group: 'PEv', maxValue: 10, halve: true },
+    { name: 'SHW', group: 'PEv', maxValue: 10, halve: true },
   ]
 }
 

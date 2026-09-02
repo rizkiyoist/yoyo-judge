@@ -16,7 +16,7 @@ const usersById = ref<Record<string, User>>({})
 const saving = ref<Record<string, boolean>>({})
 
 const division = computed(() => contest.value?.divisions.find((d) => d.id === props.divisionId))
-const isOwner = computed(() => contest.value?.ownerUserId === auth.user?.id)
+const isHeadJudge = computed(() => contest.value?.headJudgeUserId === auth.user?.id)
 
 const clickerAssignments = computed(() =>
   assignments.value
@@ -117,7 +117,10 @@ async function saveEval(playerId: string, category: string, value: number) {
     <RouterLink :to="{ name: 'score-entry', params: { contestId, divisionId, stage } }">&larr; Back to scoring</RouterLink>
     <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) — head judge override</h1>
 
-    <p v-if="!isOwner" class="error">Only the head judge who created this contest can override judge scores.</p>
+    <p v-if="!isHeadJudge" class="error">Only the head judge can override judge scores.</p>
+    <p v-else-if="contest.locked" class="error">
+      🔒 This contest is locked — unlock it from the Judges page before overriding any scores.
+    </p>
 
     <template v-else>
       <p class="muted">
@@ -219,7 +222,7 @@ async function saveEval(playerId: string, category: string, value: number) {
               <td>{{ p.name }}</td>
               <td v-for="cat in categories" :key="cat.name">
                 <input
-                  type="number" min="0" :max="cat.maxValue" step="0.5" style="width: 70px"
+                  type="number" min="0" :max="cat.maxValue" step="1" style="width: 70px"
                   :value="rawFor(p.id)?.evals[activeEvalAssignment.slot]?.[cat.name] ?? 0"
                   @change="saveEval(p.id, cat.name, +($event.target as HTMLInputElement).value)"
                 />

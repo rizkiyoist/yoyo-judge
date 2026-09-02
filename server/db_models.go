@@ -22,17 +22,24 @@ type DBContest struct {
 	ID          string `gorm:"primaryKey"`
 	Name        string `gorm:"not null"`
 	Year        int
-	OwnerUserID string `gorm:"index;not null"`
-	CreatedAt   time.Time
+	OwnerUserID string `gorm:"index;not null"` // permanent creator, never changes
+	// HeadJudgeUserID defaults to OwnerUserID (set at creation) but is
+	// transferable — see transferHeadJudge. Empty on rows created before
+	// this column existed; dbContestToContest falls back to OwnerUserID.
+	HeadJudgeUserID string `gorm:"index"`
+	// Locked freezes the *entire* contest (all divisions/stages/scores/
+	// players/judges) against any write, including by the head judge
+	// themselves — only unlocking (head-judge-only) is exempt.
+	Locked    bool `gorm:"not null;default:false"`
+	CreatedAt time.Time
 }
 
 type DBDivision struct {
-	ID           string `gorm:"primaryKey"`
-	ContestID    string `gorm:"index;not null"`
-	Name         string `gorm:"not null"`
-	Stages       string `gorm:"not null"`              // JSON: []ScoringStage
-	LockedStages string `gorm:"not null;default:'[]'"` // JSON: []ScoringStage — stages the head judge has frozen against further edits by other judges
-	CreatedAt    time.Time
+	ID        string `gorm:"primaryKey"`
+	ContestID string `gorm:"index;not null"`
+	Name      string `gorm:"not null"`
+	Stages    string `gorm:"not null"` // JSON: []ScoringStage
+	CreatedAt time.Time
 }
 
 type DBJudgeAssignment struct {

@@ -32,6 +32,11 @@ export const useContestStore = defineStore('contests', () => {
     await refreshContest(contestId)
   }
 
+  async function deleteDivision(contestId: string, divisionId: string) {
+    await api.deleteDivision(contestId, divisionId)
+    await refreshContest(contestId)
+  }
+
   async function refreshContest(contestId: string) {
     const updated = await api.getContest(contestId)
     if (!updated) return
@@ -40,5 +45,14 @@ export const useContestStore = defineStore('contests', () => {
     else contests.value = [...contests.value.slice(0, idx), updated, ...contests.value.slice(idx + 1)]
   }
 
-  return { contests, loading, fetchContests, createContest, addDivision, updateDivisionStages, refreshContest }
+  return {
+    contests,
+    loading,
+    fetchContests,
+    createContest,
+    addDivision,
+    updateDivisionStages,
+    deleteDivision,
+    refreshContest,
+  }
 })

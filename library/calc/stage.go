@@ -21,18 +21,21 @@ const (
 const DefaultClickerValue = 60
 
 // FinalCategories mirrors the FINAL workbook's SET-UP "Given Value 1-8"
-// rows: EXE/CTL/TDV/SEM roll up into T.Ev, MU1/MU2/BDY/SHW into P.Ev, and
-// FINAL-SCORE halves each averaged raw score before summing.
+// rows: EXE/CTL/TDV/SEM roll up into T.Ev, MU1/MU2/BDY/SHW into P.Ev.
+// Judges score each category 0-10, same input scale as PRELIM; halving
+// (dividing the averaged score by 2) is what actually differentiates
+// FINAL from PRELIM in the formula chain, not the input's own range —
+// MaxValue here is just the UI's input-widget hint, unused by Calculate().
 func FinalCategories() []EvalCategory {
 	return []EvalCategory{
-		{Name: "EXE", Group: GroupTechnicalEval, MaxValue: 5, Halve: true},
-		{Name: "CTL", Group: GroupTechnicalEval, MaxValue: 5, Halve: true},
-		{Name: "TDV", Group: GroupTechnicalEval, MaxValue: 5, Halve: true},
-		{Name: "SEM", Group: GroupTechnicalEval, MaxValue: 5, Halve: true},
-		{Name: "MU1", Group: GroupPerformanceEval, MaxValue: 5, Halve: true},
-		{Name: "MU2", Group: GroupPerformanceEval, MaxValue: 5, Halve: true},
-		{Name: "BDY", Group: GroupPerformanceEval, MaxValue: 5, Halve: true},
-		{Name: "SHW", Group: GroupPerformanceEval, MaxValue: 5, Halve: true},
+		{Name: "EXE", Group: GroupTechnicalEval, MaxValue: 10, Halve: true},
+		{Name: "CTL", Group: GroupTechnicalEval, MaxValue: 10, Halve: true},
+		{Name: "TDV", Group: GroupTechnicalEval, MaxValue: 10, Halve: true},
+		{Name: "SEM", Group: GroupTechnicalEval, MaxValue: 10, Halve: true},
+		{Name: "MU1", Group: GroupPerformanceEval, MaxValue: 10, Halve: true},
+		{Name: "MU2", Group: GroupPerformanceEval, MaxValue: 10, Halve: true},
+		{Name: "BDY", Group: GroupPerformanceEval, MaxValue: 10, Halve: true},
+		{Name: "SHW", Group: GroupPerformanceEval, MaxValue: 10, Halve: true},
 	}
 }
 

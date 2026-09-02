@@ -13,8 +13,11 @@ const players = ref<Player[]>([])
 const nextNumber = ref(1)
 const name = ref('')
 const saving = ref(false)
+const removing = ref<Record<string, boolean>>({})
 
-const isOwner = computed(() => contest.value?.ownerUserId === auth.user?.id)
+const canEdit = computed(
+  () => !!auth.user && (contest.value?.ownerUserId === auth.user.id || contest.value?.headJudgeUserId === auth.user.id),
+)
 const division = computed(() => contest.value?.divisions.find((d) => d.id === props.divisionId))
 
 async function load() {
@@ -36,6 +39,17 @@ async function addPlayer() {
     saving.value = false
   }
 }
+
+async function removePlayer(playerId: string) {
+  if (!confirm('Remove this player? Their scores for this division will be deleted too.')) return
+  removing.value[playerId] = true
+  try {
+    await api.removePlayer(props.divisionId, playerId)
+    await load()
+  } finally {
+    removing.value[playerId] = false
+  }
+}
 </script>
 
 <template>
@@ -43,7 +57,11 @@ async function addPlayer() {
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
     <h1>{{ contest.name }} — {{ division?.name }} players</h1>
 
-    <div v-if="isOwner" class="card">
+    <p v-if="contest.locked" class="error">
+      🔒 This contest is locked — unlock it from the Judges page before changing the roster.
+    </p>
+
+    <div v-if="canEdit && !contest.locked" class="card">
       <h2>Add a player</h2>
       <div class="row">
         <span class="badge">#{{ nextNumber }}</span>
@@ -62,12 +80,18 @@ async function addPlayer() {
           <tr>
             <th>#</th>
             <th>Name</th>
+            <th v-if="canEdit"></th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="p in players" :key="p.id">
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
+            <td v-if="canEdit">
+              <button class="danger" :disabled="contest.locked || removing[p.id]" @click="removePlayer(p.id)">
+                {{ removing[p.id] ? 'Removing…' : 'Remove' }}
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>

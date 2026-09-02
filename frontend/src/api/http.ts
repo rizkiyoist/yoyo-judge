@@ -117,10 +117,21 @@ export function createHttpApi(): ScoringApi {
       })
     },
 
-    async setDivisionStageLock(divisionId, stage, locked) {
-      return request<Division>(`/divisions/${divisionId}/lock`, {
+    async deleteDivision(contestId, divisionId) {
+      await request(`/contests/${contestId}/divisions/${divisionId}`, { method: 'DELETE' })
+    },
+
+    async setContestLocked(contestId, locked) {
+      return request<Contest>(`/contests/${contestId}/lock`, {
         method: 'PATCH',
-        body: JSON.stringify({ stage, locked }),
+        body: JSON.stringify({ locked }),
+      })
+    },
+
+    async transferHeadJudge(contestId, userId) {
+      return request<Contest>(`/contests/${contestId}/head-judge`, {
+        method: 'PATCH',
+        body: JSON.stringify({ userId }),
       })
     },
 
@@ -148,6 +159,10 @@ export function createHttpApi(): ScoringApi {
         method: 'POST',
         body: JSON.stringify({ number, name }),
       })
+    },
+
+    async removePlayer(divisionId, playerId) {
+      await request(`/divisions/${divisionId}/players/${playerId}`, { method: 'DELETE' })
     },
 
     async getRawScores(divisionId, stage) {
