@@ -33,11 +33,11 @@ export interface ScoringApi {
   addDivision(contestId: string, name: string, stages: ScoringStage[]): Promise<Division>
   updateDivisionStages(contestId: string, divisionId: string, stages: ScoringStage[]): Promise<Division>
   // Owner or head judge only. Refuses (throws) if the division still has
-  // players — remove them all first.
+  // players - remove them all first.
   deleteDivision(contestId: string, divisionId: string): Promise<void>
   // Head-judge-only: freeze/unfreeze the *entire* contest (every division,
   // stage, score, player, and judge) against writes from anyone, including
-  // the head judge themself — only this toggle stays callable while locked.
+  // the head judge themself - only this toggle stays callable while locked.
   setContestLocked(contestId: string, locked: boolean): Promise<Contest>
   // Owner or head judge only: hand head-judge privileges to another judge
   // already invited to this contest (or back to the owner). The owner
@@ -46,7 +46,7 @@ export interface ScoringApi {
 
   // Judges
   listJudgeAssignments(contestId: string): Promise<JudgeAssignment[]>
-  // `identity` is either an existing user's id, or an email to invite by —
+  // `identity` is either an existing user's id, or an email to invite by -
   // if no user exists with that email yet, one is created with no name set
   // (an "unclaimed" placeholder), so the invite is already waiting for them
   // the first time they actually log in with that email/Google account.

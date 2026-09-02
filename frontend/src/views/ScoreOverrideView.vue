@@ -115,11 +115,11 @@ async function saveEval(playerId: string, category: string, value: number) {
 <template>
   <div v-if="contest">
     <RouterLink :to="{ name: 'score-entry', params: { contestId, divisionId, stage } }">&larr; Back to scoring</RouterLink>
-    <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) — head judge override</h1>
+    <h1>{{ contest.name }} - {{ division?.name }} ({{ stage }}) - head judge override</h1>
 
     <p v-if="!isHeadJudge" class="error">Only the head judge can override judge scores.</p>
     <p v-else-if="contest.locked" class="error">
-      🔒 This contest is locked — unlock it from the Judges page before overriding any scores.
+      🔒 This contest is locked - unlock it from the Judges page before overriding any scores.
     </p>
 
     <template v-else>
@@ -134,7 +134,7 @@ async function saveEval(playerId: string, category: string, value: number) {
             <label>Acting as</label>
             <select v-model="overrideClickerUserId">
               <option v-for="a in clickerAssignments" :key="a.id" :value="a.userId">
-                #{{ a.slot }} — {{ judgeName(a.userId) }}
+                #{{ a.slot }} - {{ judgeName(a.userId) }}
               </option>
             </select>
           </div>
@@ -203,7 +203,7 @@ async function saveEval(playerId: string, category: string, value: number) {
             <label>Acting as</label>
             <select v-model="overrideEvalUserId">
               <option v-for="a in evalAssignments" :key="a.id" :value="a.userId">
-                #{{ a.slot }} — {{ judgeName(a.userId) }}
+                #{{ a.slot }} - {{ judgeName(a.userId) }}
               </option>
             </select>
           </div>

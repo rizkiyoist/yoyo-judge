@@ -54,7 +54,7 @@ async function submit(chosenEmail?: string) {
       </summary>
 
       <p class="muted" style="font-size: 0.85em; margin-top: 8px">
-        No real authentication — picks any seeded user by email.
+        No real authentication - picks any seeded user by email.
       </p>
 
       <form class="field" @submit.prevent="submit()">
@@ -73,7 +73,7 @@ async function submit(chosenEmail?: string) {
       <h3 style="margin-top: 24px">Seeded demo users</h3>
       <div class="row" style="flex-direction: column; align-items: stretch">
         <button v-for="u in seededUsers" :key="u.id" @click="submit(u.email)">
-          {{ u.firstName }} {{ u.lastName }} <span class="muted">— {{ u.email }}</span>
+          {{ u.firstName }} {{ u.lastName }} <span class="muted">- {{ u.email }}</span>
         </button>
       </div>
     </details>

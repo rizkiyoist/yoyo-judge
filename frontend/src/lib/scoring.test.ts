@@ -1,4 +1,4 @@
-// Ported from library/calc/rules_test.go — same inputs, same expected
+// Ported from library/calc/rules_test.go - same inputs, same expected
 // numbers, so the TS engine stays provably in sync with the Go one.
 import { describe, expect, it } from 'vitest'
 import { calculate, newContest, type PlayerInput } from './scoring'

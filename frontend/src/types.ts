@@ -1,6 +1,6 @@
 // Frontend domain types. Mirrors domain/model/user.go and library/calc where
 // those exist; the contest/division/judge-assignment concepts below don't
-// exist in the Go backend yet — this is the contract the real API should
+// exist in the Go backend yet - this is the contract the real API should
 // eventually implement.
 import type { ScoringStage } from './lib/scoring'
 
@@ -24,13 +24,13 @@ export interface Contest {
   id: string
   name: string
   year: number
-  // Permanent creator — never changes. Distinct from headJudgeUserId,
+  // Permanent creator - never changes. Distinct from headJudgeUserId,
   // which the owner (or the current head judge) can transfer to any
   // invited judge; the owner defaults to being the head judge too.
   ownerUserId: string
   headJudgeUserId: string
   // Freezes the whole contest (all divisions/scores/players/judges)
-  // against writes, including by the head judge — only unlocking is
+  // against writes, including by the head judge - only unlocking is
   // exempt. Toggled by the current head judge only.
   locked: boolean
   divisions: Division[]

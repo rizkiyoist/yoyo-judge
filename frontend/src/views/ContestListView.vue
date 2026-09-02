@@ -188,7 +188,7 @@ async function downloadContestResults(contest: Contest) {
 <html>
 <head>
 <meta charset="utf-8">
-<title>${escapeHtml(contest.name)} — Final Results</title>
+<title>${escapeHtml(contest.name)} - Final Results</title>
 <style>
   body { font: 14px/1.5 system-ui, sans-serif; padding: 24px; color: #2b2b33; }
   h1 { margin-bottom: 4px; }
@@ -200,7 +200,7 @@ async function downloadContestResults(contest: Contest) {
 </head>
 <body>
 <h1>${escapeHtml(contest.name)} (${contest.year})</h1>
-<p>Final results — all divisions</p>
+<p>Final results - all divisions</p>
 ${sections.join('\n') || '<p>No divisions with a final stage.</p>'}
 </body>
 </html>`
@@ -249,6 +249,7 @@ async function createContest() {
           v-if="contest.headJudgeUserId === userId"
           :disabled="lockToggling[contest.id]"
           :class="{ primary: !contest.locked }"
+          :title="contest.locked ? 'Unlock this contest so scores and settings can be changed again.' : 'Lock this contest to freeze all scores and settings.'"
           @click="toggleLock(contest)"
         >
           {{ lockToggling[contest.id] ? 'Working…' : contest.locked ? 'Unlock' : 'Lock' }}
@@ -265,7 +266,7 @@ async function createContest() {
       </div>
     </div>
 
-    <p v-if="!contest.divisions.length" class="muted">No divisions yet — add one to get started.</p>
+    <p v-if="!contest.divisions.length" class="muted">No divisions yet - add one to get started.</p>
 
     <table v-else>
       <thead>
@@ -324,9 +325,9 @@ async function createContest() {
                   {{ r.name }}
                 </li>
               </ol>
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">-</span>
             </template>
-            <span v-else class="muted">—</span>
+            <span v-else class="muted">-</span>
           </td>
         </tr>
       </tbody>
@@ -338,7 +339,7 @@ async function createContest() {
         <p v-if="!judgesByRole(judgesByContest[contest.id], 'clicker').length" class="muted">None assigned.</p>
         <ul v-else style="margin: 0; padding-left: 18px">
           <li v-for="a in judgesByRole(judgesByContest[contest.id], 'clicker')" :key="a.id">
-            #{{ a.slot }} —
+            #{{ a.slot }} -
             <strong v-if="a.userId === contest.ownerUserId">{{ judgeName(a.userId) }}</strong>
             <template v-else>{{ judgeName(a.userId) }}</template>
           </li>
@@ -349,7 +350,7 @@ async function createContest() {
         <p v-if="!judgesByRole(judgesByContest[contest.id], 'evaluator').length" class="muted">None assigned.</p>
         <ul v-else style="margin: 0; padding-left: 18px">
           <li v-for="a in judgesByRole(judgesByContest[contest.id], 'evaluator')" :key="a.id">
-            #{{ a.slot }} —
+            #{{ a.slot }} -
             <strong v-if="a.userId === contest.ownerUserId">{{ judgeName(a.userId) }}</strong>
             <template v-else>{{ judgeName(a.userId) }}</template>
           </li>

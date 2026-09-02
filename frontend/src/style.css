@@ -211,7 +211,7 @@ th {
 .place-3 { color: #a0522d; font-weight: 700; }
 
 /* Technical execution/evaluation vs performance evaluation columns in the
-   results table — distinct colors so the two scoring groups are easy to
+   results table - distinct colors so the two scoring groups are easy to
    tell apart at a glance. */
 .col-tex {
   color: var(--tex-color);

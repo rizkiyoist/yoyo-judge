@@ -70,7 +70,7 @@ async function load() {
 onMounted(load)
 
 function judgeLabel(userId: string | undefined): string {
-  if (!userId) return '—'
+  if (!userId) return '-'
   const u = usersById.value[userId]
   if (!u) return userId
   return `${u.firstName} ${u.lastName}`.trim() || `${u.email} (not signed in yet)`
@@ -88,7 +88,7 @@ function toggle(playerId: string) {
 <template>
   <div v-if="contest">
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
-    <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) results</h1>
+    <h1>{{ contest.name }} - {{ division?.name }} ({{ stage }}) results</h1>
 
     <div class="card">
       <table v-if="sortedResults.length" style="min-width: max-content">
@@ -130,7 +130,7 @@ function toggle(playerId: string) {
             </tr>
             <tr v-if="expanded[r.playerId]">
               <td :colspan="11 + categories.length">
-                <h3>Clicker judges (M.D. — Stop {{ rawFor(r.playerId)?.deductions.stop ?? 0 }}, Discard
+                <h3>Clicker judges (M.D. - Stop {{ rawFor(r.playerId)?.deductions.stop ?? 0 }}, Discard
                   {{ rawFor(r.playerId)?.deductions.discard ?? 0 }}, {{ thirdDeductionLabel }}
                   {{ rawFor(r.playerId)?.deductions.cut ?? 0 }})</h3>
                 <table>

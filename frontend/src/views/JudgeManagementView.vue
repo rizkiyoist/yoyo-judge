@@ -70,7 +70,7 @@ async function search() {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // Only offered once the search comes back empty for a query that's a
-// plausible email — avoids suggesting it while results are still loading
+// plausible email - avoids suggesting it while results are still loading
 // or for a plain name search with no matches.
 const canInviteByEmail = computed(() => !searchResults.value.length && EMAIL_RE.test(query.value.trim()))
 
@@ -150,7 +150,7 @@ const evalAssignments = computed(() =>
 <template>
   <div v-if="contest">
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
-    <h1>{{ contest.name }} — Judges</h1>
+    <h1>{{ contest.name }} - Judges</h1>
     <p v-if="!canManage" class="muted">Only the contest owner or head judge can manage judges.</p>
     <p v-if="contest.locked" class="error">
       🔒 This contest is locked. {{ isCurrentHeadJudge ? 'Unlock it below to make changes.' : 'Only the head judge can unlock it.' }}
@@ -184,19 +184,19 @@ const evalAssignments = computed(() =>
       </p>
 
       <div class="field">
-        <label>Search judges by name or email</label>
+        <label>Search judges by name, or invite by email</label>
         <input v-model="query" type="text" placeholder="e.g. clicker.a1@example.com" @input="search" />
       </div>
 
       <div v-if="searchResults.length" class="row" style="flex-direction: column; align-items: stretch">
         <button v-for="u in searchResults" :key="u.id" @click="invite({ userId: u.id })">
-          Invite {{ u.firstName }} {{ u.lastName }} — {{ u.email }}
+          Invite {{ u.firstName }} {{ u.lastName }} - {{ u.email }}
         </button>
       </div>
       <div v-else-if="canInviteByEmail" class="row" style="flex-direction: column; align-items: stretch">
         <button @click="invite({ email: query.trim() })">Invite {{ query.trim() }} (not registered yet)</button>
         <p class="muted" style="font-size: 0.85em; margin-top: 4px">
-          No account with this email yet — inviting reserves their slot, and they'll see this
+          No account with this email yet - inviting reserves their slot, and they'll see this
           contest as soon as they sign in with this email.
         </p>
       </div>
@@ -205,10 +205,8 @@ const evalAssignments = computed(() =>
     <div v-if="canManage" class="card">
       <h2>Head judge</h2>
       <p class="muted">
-        Currently: <strong>{{ userLabel(contest.headJudgeUserId) }}</strong
-        ><template v-if="isOwnerUserId(contest.headJudgeUserId)"> (also the contest owner)</template>.
-        The owner ({{ userLabel(contest.ownerUserId) }}) never changes, but head-judge privileges — locking,
-        overriding scores, and managing judges/divisions/players — can be handed to any invited judge.
+        Currently: <strong>{{ userLabel(contest.headJudgeUserId) }}</strong>.
+        Can be handed to any invited judge.
       </p>
       <div class="row">
         <select v-model="transferTargetId" :disabled="contest.locked">

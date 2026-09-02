@@ -1,6 +1,6 @@
 // Real HTTP-backed ScoringApi implementation, calling the Go backend
 // (server/). By default calls a relative, same-origin path prefixed by
-// VITE_BASE_PATH (default "/yoyojudge", matching router.go's basePath()) —
+// VITE_BASE_PATH (default "/yoyojudge", matching router.go's basePath()) -
 // this is correct for the embedded single-binary deploy (frontend and API
 // served by the same process) and for local dev (vite.config.ts proxies
 // that prefix to the backend). Set VITE_API_BASE_URL to an absolute URL

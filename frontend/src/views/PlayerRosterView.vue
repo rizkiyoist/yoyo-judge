@@ -55,10 +55,10 @@ async function removePlayer(playerId: string) {
 <template>
   <div v-if="contest">
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
-    <h1>{{ contest.name }} — {{ division?.name }} players</h1>
+    <h1>{{ contest.name }} - {{ division?.name }} players</h1>
 
     <p v-if="contest.locked" class="error">
-      🔒 This contest is locked — unlock it from the Judges page before changing the roster.
+      🔒 This contest is locked - unlock it from the Judges page before changing the roster.
     </p>
 
     <div v-if="canEdit && !contest.locked" class="card">

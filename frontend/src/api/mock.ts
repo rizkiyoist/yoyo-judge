@@ -419,7 +419,7 @@ export function createMockApi(): ScoringApi {
       if (!contest || !division) throw new Error('division not found')
       assertContestWritable(contest, db.sessionUserId)
       if (division.players.length > 0) {
-        throw new Error('this division still has players — remove them all before deleting the division')
+        throw new Error('this division still has players - remove them all before deleting the division')
       }
       contest.divisions = contest.divisions.filter((d) => d.id !== divisionId)
       saveDb(db)
@@ -471,7 +471,7 @@ export function createMockApi(): ScoringApi {
         if (existing) {
           userId = existing.id
         } else {
-          // Placeholder account, no name yet — this is what makes the
+          // Placeholder account, no name yet - this is what makes the
           // invite already visible the first time this email actually logs in.
           const placeholder: User = { id: uid('u'), firstName: '', lastName: '', email }
           db.users.push(placeholder)

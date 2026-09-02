@@ -17,7 +17,7 @@ const saving = ref<Record<string, boolean>>({})
 const division = computed(() => contest.value?.divisions.find((d) => d.id === props.divisionId))
 const isHeadJudge = computed(() => contest.value?.headJudgeUserId === auth.user?.id)
 // Locking freezes the whole contest for everyone, including the head
-// judge themself — they have to unlock (from the Judges page) before
+// judge themself - they have to unlock (from the Judges page) before
 // anyone, themself included, can submit or override scores again.
 const inputsDisabled = computed(() => contest.value?.locked ?? false)
 
@@ -28,7 +28,7 @@ const myAssignments = computed(() =>
 )
 const myClickerAssignment = computed(() => myAssignments.value.find((a) => a.role === 'clicker'))
 const myEvalAssignment = computed(() => myAssignments.value.find((a) => a.role === 'evaluator'))
-// Any assigned judge (clicker or evaluator) may record major deductions —
+// Any assigned judge (clicker or evaluator) may record major deductions -
 // one shared value per player, not per judge.
 const canEditDeductions = computed(() => myAssignments.value.length > 0)
 
@@ -93,7 +93,7 @@ async function saveEval(playerId: string, category: string, value: number) {
 <template>
   <div v-if="contest">
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
-    <h1>{{ contest.name }} — {{ division?.name }} ({{ stage }}) scoring</h1>
+    <h1>{{ contest.name }} - {{ division?.name }} ({{ stage }}) scoring</h1>
 
     <p v-if="isHeadJudge" class="row" style="align-items: center">
       <RouterLink :to="{ name: 'score-override', params: { contestId, divisionId, stage } }">
@@ -102,7 +102,7 @@ async function saveEval(playerId: string, category: string, value: number) {
     </p>
 
     <p v-if="contest.locked" class="error">
-      🔒 This contest is locked — go to the Judges page to unlock it before any scores can change.
+      🔒 This contest is locked - go to the Judges page to unlock it before any scores can change.
     </p>
 
     <p v-if="!myAssignments.length" class="muted">
@@ -110,7 +110,7 @@ async function saveEval(playerId: string, category: string, value: number) {
     </p>
 
     <div v-if="myClickerAssignment" class="card">
-      <h2>Clicker judge — slot {{ myClickerAssignment.slot }}</h2>
+      <h2>Clicker judge - slot {{ myClickerAssignment.slot }}</h2>
       <fieldset :disabled="inputsDisabled" style="border: 0; padding: 0; margin: 0">
       <table>
         <thead>
@@ -168,13 +168,13 @@ async function saveEval(playerId: string, category: string, value: number) {
       </table>
       </fieldset>
       <p class="muted">
-        Major deductions (Stop/Discard/{{ thirdDeductionLabel }}) apply once per player — coordinate with the other
+        Major deductions (Stop/Discard/{{ thirdDeductionLabel }}) apply once per player - coordinate with the other
         clicker judges so they aren't entered twice.
       </p>
     </div>
 
     <div v-if="myEvalAssignment" class="card">
-      <h2>Evaluation judge — slot {{ myEvalAssignment.slot }}</h2>
+      <h2>Evaluation judge - slot {{ myEvalAssignment.slot }}</h2>
       <fieldset :disabled="inputsDisabled" style="border: 0; padding: 0; margin: 0">
       <table>
         <thead>
@@ -228,7 +228,7 @@ async function saveEval(playerId: string, category: string, value: number) {
       </table>
       </fieldset>
       <p v-if="!myClickerAssignment" class="muted">
-        Major deductions (Stop/Discard/{{ thirdDeductionLabel }}) apply once per player — coordinate with the other
+        Major deductions (Stop/Discard/{{ thirdDeductionLabel }}) apply once per player - coordinate with the other
         judges so they aren't entered twice.
       </p>
     </div>

@@ -1,5 +1,5 @@
 // TS port of yoyo-judge's Go scoring engine (library/calc/stage.go + rules.go).
-// Keep this in lockstep with the Go source — it's the same IYYF formula chain,
+// Keep this in lockstep with the Go source - it's the same IYYF formula chain,
 // just running client-side against the mock API's stored raw scores.
 
 export type ScoringStage = 'final' | 'prelim'
@@ -60,7 +60,7 @@ export const DEFAULT_CLICKER_VALUE = 60
 
 // Judges score each FINAL category 0-10, same input scale as PRELIM;
 // halving (dividing the averaged score by 2, in calculate() below) is what
-// differentiates FINAL from PRELIM, not the input's own range — maxValue
+// differentiates FINAL from PRELIM, not the input's own range - maxValue
 // here is just the input widget's hint, not read by calculate().
 export function finalCategories(): EvalCategory[] {
   return [
