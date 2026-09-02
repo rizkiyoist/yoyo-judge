@@ -360,7 +360,7 @@ async function assignMd() {
         </div>
       </div>
 
-      <div style="border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-top: 24px; background: var(--bg-alt)">
+      <div style="margin-top: 24px">
         <h3 style="margin: 0 0 6px">Major Deduction Judge</h3>
         <p class="muted" style="font-size: 0.85em; margin-top: 0">
           Always an additional role for a judge already assigned above.
@@ -383,19 +383,21 @@ async function assignMd() {
             </tr>
           </tbody>
         </table>
-        <p v-else class="muted">None assigned.</p>
-        <div v-if="canManage" class="row" style="margin-top: 8px">
-          <select v-model="mdTargetId" :disabled="contest.locked || !mdCandidates.length">
-            <option value="" disabled>Choose a judge…</option>
-            <option v-for="uid in mdCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
-          </select>
-          <button :disabled="!mdTargetId || contest.locked || assigningMd" @click="assignMd">
-            {{ assigningMd ? 'Working…' : mdAssignment ? 'Replace' : 'Assign' }}
-          </button>
-        </div>
-        <p v-if="canManage && !mdCandidates.length" class="muted" style="font-size: 0.85em">
-          Invite a clicker or evaluation judge first.
-        </p>
+        <template v-else>
+          <p class="muted">None assigned.</p>
+          <div v-if="canManage" class="row" style="margin-top: 8px">
+            <select v-model="mdTargetId" :disabled="contest.locked || !mdCandidates.length">
+              <option value="" disabled>Choose a judge…</option>
+              <option v-for="uid in mdCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
+            </select>
+            <button :disabled="!mdTargetId || contest.locked || assigningMd" @click="assignMd">
+              {{ assigningMd ? 'Working…' : 'Assign' }}
+            </button>
+          </div>
+          <p v-if="canManage && !mdCandidates.length" class="muted" style="font-size: 0.85em">
+            Invite a clicker or evaluation judge first.
+          </p>
+        </template>
         <span v-if="mdError" class="error">{{ mdError }}</span>
       </div>
     </div>
