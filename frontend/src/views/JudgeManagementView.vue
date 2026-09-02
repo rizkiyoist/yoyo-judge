@@ -159,13 +159,14 @@ const evalAssignments = computed(() =>
 
     <div v-if="canManage && !hasDivisions" class="card">
       <p class="error">
-        No divisions yet. Add a division first.
+        You can add judges after setting divisions.
         <RouterLink :to="{ name: 'contest-edit', params: { contestId } }">Go to Divisions</RouterLink>
       </p>
     </div>
 
-    <div v-if="canManage && !contest.locked && hasDivisions" class="card">
+    <div v-if="canManage" class="card" :style="!hasDivisions ? 'opacity: 0.5; pointer-events: none' : ''">
       <h2>Invite a judge</h2>
+      <fieldset :disabled="contest.locked || !hasDivisions" style="border: 0; padding: 0; margin: 0">
       <div class="row">
         <div class="field">
           <label>Division</label>
@@ -208,6 +209,7 @@ const evalAssignments = computed(() =>
           contest as soon as they sign in with this email.
         </p>
       </div>
+      </fieldset>
     </div>
 
     <div v-if="canManage" class="card">

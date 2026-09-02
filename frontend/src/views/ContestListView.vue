@@ -245,15 +245,6 @@ async function createContest() {
         <span v-if="contest.locked" class="badge" title="Locked by head judge">🔒 Locked</span>
       </div>
       <div class="row">
-        <button
-          v-if="contest.headJudgeUserId === userId"
-          :disabled="lockToggling[contest.id]"
-          :class="{ primary: !contest.locked }"
-          :title="contest.locked ? 'Unlock this contest so scores and settings can be changed again.' : 'Lock this contest to freeze all scores and settings.'"
-          @click="toggleLock(contest)"
-        >
-          {{ lockToggling[contest.id] ? 'Working…' : contest.locked ? 'Unlock' : 'Lock' }}
-        </button>
         <RouterLink :to="{ name: 'contest-edit', params: { contestId: contest.id } }">
           <button>Divisions</button>
         </RouterLink>
@@ -262,6 +253,15 @@ async function createContest() {
         </RouterLink>
         <button :disabled="downloading[contest.id]" @click="downloadContestResults(contest)">
           {{ downloading[contest.id] ? 'Preparing…' : 'Download Results' }}
+        </button>
+        <button
+          v-if="contest.headJudgeUserId === userId"
+          :disabled="lockToggling[contest.id]"
+          :class="{ primary: !contest.locked }"
+          :title="contest.locked ? 'Unlock this contest so scores and settings can be changed again.' : 'Lock this contest to freeze all scores and settings.'"
+          @click="toggleLock(contest)"
+        >
+          {{ lockToggling[contest.id] ? 'Working…' : contest.locked ? 'Unlock' : 'Lock' }}
         </button>
       </div>
     </div>

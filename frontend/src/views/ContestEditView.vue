@@ -87,7 +87,12 @@ async function deleteDivision(divisionId: string) {
 <template>
   <div v-if="contest">
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
-    <h1>{{ contest.name }} - Divisions</h1>
+    <div class="row" style="justify-content: space-between; align-items: center">
+      <h1 style="margin: 0">{{ contest.name }} - Divisions</h1>
+      <RouterLink :to="{ name: 'contest-judges', params: { contestId } }">
+        <button>Go to Judges</button>
+      </RouterLink>
+    </div>
 
     <p v-if="!canEdit" class="muted">Only the contest owner or head judge can edit divisions.</p>
     <p v-if="contest.locked" class="error">
