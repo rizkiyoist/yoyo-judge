@@ -110,23 +110,6 @@ function isHeadJudgeUserId(userId: string): boolean {
   return userId === contest.value?.headJudgeUserId
 }
 
-const lockToggling = ref(false)
-const lockError = ref('')
-
-async function toggleLock() {
-  if (!contest.value) return
-  lockToggling.value = true
-  lockError.value = ''
-  try {
-    await api.setContestLocked(contest.value.id, !contest.value.locked)
-    await load()
-  } catch (e) {
-    lockError.value = e instanceof Error ? e.message : 'Failed to update lock'
-  } finally {
-    lockToggling.value = false
-  }
-}
-
 // Anyone eligible to receive head-judge status: the owner, plus every
 // distinct judge currently assigned somewhere in this contest.
 const headJudgeCandidates = computed(() => {
@@ -172,38 +155,6 @@ const evalAssignments = computed(() =>
     <p v-if="contest.locked" class="error">
       🔒 This contest is locked. {{ isCurrentHeadJudge ? 'Unlock it below to make changes.' : 'Only the head judge can unlock it.' }}
     </p>
-
-    <div v-if="isCurrentHeadJudge" class="card">
-      <h2>Lock / unlock this contest</h2>
-      <p class="muted">
-        Locking freezes everything in this contest — divisions, players, judges, and all scores — against changes
-        by anyone, including you, until you unlock it again.
-      </p>
-      <button :class="{ primary: !contest.locked }" :disabled="lockToggling" @click="toggleLock">
-        {{ lockToggling ? 'Working…' : contest.locked ? 'Unlock contest' : 'Lock contest' }}
-      </button>
-      <span v-if="lockError" class="error">{{ lockError }}</span>
-    </div>
-
-    <div v-if="canManage" class="card">
-      <h2>Head judge</h2>
-      <p class="muted">
-        Currently: <strong>{{ userLabel(contest.headJudgeUserId) }}</strong
-        ><template v-if="isOwnerUserId(contest.headJudgeUserId)"> (also the contest owner)</template>.
-        The owner ({{ userLabel(contest.ownerUserId) }}) never changes, but head-judge privileges — locking,
-        overriding scores, and managing judges/divisions/players — can be handed to any invited judge.
-      </p>
-      <div class="row">
-        <select v-model="transferTargetId" :disabled="contest.locked">
-          <option value="" disabled>Choose a judge…</option>
-          <option v-for="uid in headJudgeCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
-        </select>
-        <button :disabled="!transferTargetId || contest.locked || transferring" @click="transferHeadJudge">
-          {{ transferring ? 'Working…' : 'Make head judge' }}
-        </button>
-      </div>
-      <span v-if="transferError" class="error">{{ transferError }}</span>
-    </div>
 
     <div v-if="canManage && !contest.locked" class="card">
       <h2>Invite a judge</h2>
@@ -251,8 +202,29 @@ const evalAssignments = computed(() =>
       </div>
     </div>
 
+    <div v-if="canManage" class="card">
+      <h2>Head judge</h2>
+      <p class="muted">
+        Currently: <strong>{{ userLabel(contest.headJudgeUserId) }}</strong
+        ><template v-if="isOwnerUserId(contest.headJudgeUserId)"> (also the contest owner)</template>.
+        The owner ({{ userLabel(contest.ownerUserId) }}) never changes, but head-judge privileges — locking,
+        overriding scores, and managing judges/divisions/players — can be handed to any invited judge.
+      </p>
+      <div class="row">
+        <select v-model="transferTargetId" :disabled="contest.locked">
+          <option value="" disabled>Choose a judge…</option>
+          <option v-for="uid in headJudgeCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
+        </select>
+        <button :disabled="!transferTargetId || contest.locked || transferring" @click="transferHeadJudge">
+          {{ transferring ? 'Working…' : 'Make head judge' }}
+        </button>
+      </div>
+      <span v-if="transferError" class="error">{{ transferError }}</span>
+    </div>
+
     <div class="card">
-      <h2 style="margin-bottom: 10px">Current assignments — {{ selectedDivision?.name }}</h2>
+      <h2 style="margin-bottom: 10px">Current assignments</h2>
+      <p class="muted" style="margin-top: -4px; margin-bottom: 12px">Division: <strong>{{ selectedDivision?.name }}</strong></p>
       <div class="row" style="gap: 4px; margin-bottom: 14px">
         <button
           v-for="s in selectedDivision?.stages ?? []"

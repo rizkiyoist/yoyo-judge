@@ -110,6 +110,17 @@ function judgesByRole(assignments: JudgeAssignment[] | undefined, role: JudgeAss
 }
 
 const downloading = ref<Record<string, boolean>>({})
+const lockToggling = ref<Record<string, boolean>>({})
+
+async function toggleLock(contest: Contest) {
+  lockToggling.value[contest.id] = true
+  try {
+    await api.setContestLocked(contest.id, !contest.locked)
+    await store.fetchContests()
+  } finally {
+    lockToggling.value[contest.id] = false
+  }
+}
 
 function divisionResultsTable(division: Division, results: PlayerResult[]): string {
   const categories = finalCategories()
@@ -231,8 +242,17 @@ async function createContest() {
       <div class="row">
         <h2 style="margin: 0">{{ contest.name }}</h2>
         <span class="badge-year">{{ contest.year }}</span>
+        <span v-if="contest.locked" class="badge" title="Locked by head judge">🔒 Locked</span>
       </div>
       <div class="row">
+        <button
+          v-if="contest.headJudgeUserId === userId"
+          :disabled="lockToggling[contest.id]"
+          :class="{ primary: !contest.locked }"
+          @click="toggleLock(contest)"
+        >
+          {{ lockToggling[contest.id] ? 'Working…' : contest.locked ? 'Unlock' : 'Lock' }}
+        </button>
         <RouterLink :to="{ name: 'contest-judges', params: { contestId: contest.id } }">
           <button>Judges</button>
         </RouterLink>
