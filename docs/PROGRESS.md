@@ -1,6 +1,33 @@
 # Progress Summary
 
-_Last updated: 2026-08-21 (real production deploy: TLS on backend, port config)_
+_Last updated: 2026-09-02 (added "resuming on a new machine" notes; no code changes this session)_
+
+## Resuming on a new machine
+
+Repo state as of this note: `main`, clean working tree, HEAD = `b5f85c8`
+("Single-binary deploy support: embedded frontend, BASE_PATH, TLS, port
+config") — everything described below is already committed and pushed, so
+`git clone`/`git pull` is all that's needed for the code itself. What
+**won't** come with a fresh clone (all gitignored):
+
+- `env.json` (copy from `env.json.example`) and `dbconfig.yml` (copy from
+  `dbconfig.yml.example`) — MySQL connection settings. Currently unused at
+  runtime (`main.go` no longer calls `config.InitSQL`, see "Real production
+  deployment" below), but `sql-migrate` still reads `dbconfig.yml` directly
+  if you touch `migration/`.
+- `bin/`, `dist/` — build output. Run `./build.ps1` (repo root, PowerShell)
+  to regenerate both the Windows/Linux backend binaries and the embedded
+  frontend `dist/`. **`go build .`/`go run .` will fail on a fresh clone**
+  until the frontend step of `build.ps1` has populated `dist/` at least
+  once, since `static.go` embeds it at compile time.
+- `frontend/node_modules/` — run `npm install` in `frontend/` first.
+- Production `cert.pem`/`key.pem` live only on the deploy server
+  (`103.134.154.210`, `rizkiyoist.duckdns.org`), not in this repo or
+  expected on a dev machine — see the acme.sh steps under "Real production
+  deployment" below if that ever needs to be redone from scratch.
+
+No other local-only state exists — the app has no real database yet
+(everything is in-memory in `server/store.go`, reset on restart).
 
 ## Goal
 
