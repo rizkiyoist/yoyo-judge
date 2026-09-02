@@ -66,6 +66,8 @@ func Mount(router *mux.Router, store *Store, basePath string) {
 	api.HandleFunc("/divisions/{divisionId}/players", store.requireAuth(store.handleListPlayers)).Methods(http.MethodGet)
 	api.HandleFunc("/divisions/{divisionId}/players", store.requireAuth(store.handleAddPlayer)).Methods(http.MethodPost)
 
+	api.HandleFunc("/divisions/{divisionId}/lock", store.requireAuth(store.handleSetDivisionLock)).Methods(http.MethodPatch)
+
 	api.HandleFunc("/divisions/{divisionId}/scores", store.requireAuth(store.handleGetRawScores)).Methods(http.MethodGet)
 	api.HandleFunc("/divisions/{divisionId}/scores/clicker", store.requireAuth(store.handleSubmitClickerScore)).Methods(http.MethodPost)
 	api.HandleFunc("/divisions/{divisionId}/scores/deductions", store.requireAuth(store.handleSubmitDeductions)).Methods(http.MethodPost)
@@ -122,7 +124,7 @@ func (s *Store) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
 // --- contests ---
 
 func (s *Store) handleListContests(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, nonNil(s.listContestsForUser(currentUser(r).ID)))
+	writeJSON(w, http.StatusOK, nonNil(s.listAllContests()))
 }
 
 func (s *Store) handleCreateContest(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +175,35 @@ func (s *Store) handleUpdateDivisionStages(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	division, ok := s.updateDivisionStages(vars["contestId"], vars["divisionId"], body.Stages)
+	if !ok {
+		writeError(w, http.StatusNotFound, "division not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, division)
+}
+
+// handleSetDivisionLock lets only the contest's owner freeze/unfreeze one
+// stage of a division against edits from other judges.
+func (s *Store) handleSetDivisionLock(w http.ResponseWriter, r *http.Request) {
+	divisionID := mux.Vars(r)["divisionId"]
+	var body struct {
+		Stage  calc.ScoringStage `json:"stage"`
+		Locked bool              `json:"locked"`
+	}
+	if !readJSON(r, &body) {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	contestID, ok := s.divisionContestID(divisionID)
+	if !ok {
+		writeError(w, http.StatusNotFound, "division not found")
+		return
+	}
+	if !s.isContestOwner(contestID, currentUser(r).ID) {
+		writeError(w, http.StatusForbidden, "only the contest owner can lock or unlock scores")
+		return
+	}
+	division, ok := s.setDivisionStageLock(contestID, divisionID, body.Stage, body.Locked)
 	if !ok {
 		writeError(w, http.StatusNotFound, "division not found")
 		return
@@ -266,6 +297,10 @@ func (s *Store) handleSubmitClickerScore(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	if status, msg := s.authorizeSlotScoreWrite(divisionID, body.Stage, RoleClicker, body.Slot, currentUser(r).ID); status != 0 {
+		writeError(w, status, msg)
+		return
+	}
 	s.upsertClickerScore(divisionID, body.Stage, body.PlayerID, body.Slot, body.Score)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -279,6 +314,10 @@ func (s *Store) handleSubmitDeductions(w http.ResponseWriter, r *http.Request) {
 	}
 	if !readJSON(r, &body) {
 		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if status, msg := s.authorizeDeductionsWrite(divisionID, body.Stage, currentUser(r).ID); status != 0 {
+		writeError(w, status, msg)
 		return
 	}
 	s.upsertDeductions(divisionID, body.Stage, body.PlayerID, body.Deductions)
@@ -295,6 +334,10 @@ func (s *Store) handleSubmitEvalScore(w http.ResponseWriter, r *http.Request) {
 	}
 	if !readJSON(r, &body) {
 		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if status, msg := s.authorizeSlotScoreWrite(divisionID, body.Stage, RoleEvaluator, body.Slot, currentUser(r).ID); status != 0 {
+		writeError(w, status, msg)
 		return
 	}
 	s.upsertEvalScore(divisionID, body.Stage, body.PlayerID, body.Slot, body.Scores)

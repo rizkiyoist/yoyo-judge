@@ -7,10 +7,10 @@ export const useContestStore = defineStore('contests', () => {
   const contests = ref<Contest[]>([])
   const loading = ref(false)
 
-  async function fetchContests(userId: string) {
+  async function fetchContests() {
     loading.value = true
     try {
-      contests.value = await api.listContests(userId)
+      contests.value = await api.listContests()
     } finally {
       loading.value = false
     }

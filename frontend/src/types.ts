@@ -18,6 +18,9 @@ export interface Division {
   contestId: string
   name: string
   stages: ScoringStage[]
+  // Stages the head judge has frozen — no one but the contest owner can
+  // submit clicker/eval/deduction scores for a locked stage.
+  lockedStages: ScoringStage[]
 }
 
 export interface Contest {

@@ -21,10 +21,11 @@ type User struct {
 
 // Division mirrors frontend/src/types.ts's Division.
 type Division struct {
-	ID        string              `json:"id"`
-	ContestID string              `json:"contestId"`
-	Name      string              `json:"name"`
-	Stages    []calc.ScoringStage `json:"stages"`
+	ID           string              `json:"id"`
+	ContestID    string              `json:"contestId"`
+	Name         string              `json:"name"`
+	Stages       []calc.ScoringStage `json:"stages"`
+	LockedStages []calc.ScoringStage `json:"lockedStages"`
 }
 
 // Contest mirrors frontend/src/types.ts's Contest.

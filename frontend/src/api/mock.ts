@@ -172,6 +172,7 @@ function seedDb(): Db {
     contestId,
     name: '3A',
     stages: ['prelim', 'final'],
+    lockedStages: [],
     players,
     assignments,
     scores: { final: finalScores, prelim: players.map((p) => emptyRawScores(p.id)) },
@@ -219,6 +220,7 @@ function toContest(dc: DbContest): Contest {
       contestId: d.contestId,
       name: d.name,
       stages: d.stages,
+      lockedStages: d.lockedStages,
     })),
   }
 }
@@ -229,6 +231,18 @@ function findDivision(db: Db, divisionId: string): { contest: DbContest; divisio
     if (division) return { contest, division }
   }
   return null
+}
+
+// Mirrors server/store.go's authorizeSlotScoreWrite/authorizeDeductionsWrite
+// lock check (not the finer per-slot assignment check — the mock has no
+// real per-user security boundary anyway, this just keeps the lock UX
+// testable offline). The contest owner can always write; anyone else is
+// blocked once the stage is locked.
+function assertScoreWritable(db: Db, contest: DbContest, division: DbDivision, stage: ScoringStage): void {
+  if (contest.ownerUserId === db.sessionUserId) return
+  if (division.lockedStages.includes(stage)) {
+    throw new Error('scores are locked by the head judge')
+  }
 }
 
 function rawScoresFor(division: DbDivision, stage: ScoringStage, playerId: string): PlayerRawScores {
@@ -300,12 +314,8 @@ export function createMockApi(): ScoringApi {
       return delay(db.users.filter((u) => idSet.has(u.id)))
     },
 
-    async listContests(userId) {
-      const owned = db.contests.filter((c) => c.ownerUserId === userId)
-      const invited = db.contests.filter(
-        (c) => c.ownerUserId !== userId && c.divisions.some((d) => d.assignments.some((a) => a.userId === userId)),
-      )
-      return delay([...owned, ...invited].map(toContest))
+    async listContests() {
+      return delay(db.contests.map(toContest))
     },
 
     async getContest(contestId) {
@@ -328,13 +338,14 @@ export function createMockApi(): ScoringApi {
         contestId,
         name,
         stages,
+        lockedStages: [],
         players: [],
         assignments: [],
         scores: {},
       }
       contest.divisions.push(division)
       saveDb(db)
-      return delay({ id: division.id, contestId, name, stages })
+      return delay({ id: division.id, contestId, name, stages, lockedStages: [] })
     },
 
     async updateDivisionStages(contestId, divisionId, stages) {
@@ -343,7 +354,27 @@ export function createMockApi(): ScoringApi {
       if (!contest || !division) throw new Error('division not found')
       division.stages = stages
       saveDb(db)
-      return delay({ id: division.id, contestId, name: division.name, stages })
+      return delay({ id: division.id, contestId, name: division.name, stages, lockedStages: division.lockedStages })
+    },
+
+    async setDivisionStageLock(divisionId, stage, locked) {
+      const found = findDivision(db, divisionId)
+      if (!found) throw new Error('division not found')
+      const { contest, division } = found
+      if (contest.ownerUserId !== db.sessionUserId) {
+        throw new Error('only the contest owner can lock or unlock scores')
+      }
+      division.lockedStages = locked
+        ? [...new Set([...division.lockedStages, stage])]
+        : division.lockedStages.filter((s) => s !== stage)
+      saveDb(db)
+      return delay({
+        id: division.id,
+        contestId: division.contestId,
+        name: division.name,
+        stages: division.stages,
+        lockedStages: division.lockedStages,
+      })
     },
 
     async listJudgeAssignments(contestId) {
@@ -414,6 +445,7 @@ export function createMockApi(): ScoringApi {
     async submitClickerScore(divisionId, stage, playerId, slot, score: ClickerInput) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
+      assertScoreWritable(db, found.contest, found.division, stage)
       const raw = rawScoresFor(found.division, stage, playerId)
       raw.clickers[slot] = score
       saveDb(db)
@@ -423,6 +455,7 @@ export function createMockApi(): ScoringApi {
     async submitDeductions(divisionId, stage, playerId, deductions) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
+      assertScoreWritable(db, found.contest, found.division, stage)
       const raw = rawScoresFor(found.division, stage, playerId)
       raw.deductions = deductions
       saveDb(db)
@@ -432,6 +465,7 @@ export function createMockApi(): ScoringApi {
     async submitEvalScore(divisionId, stage, playerId, slot, scores) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
+      assertScoreWritable(db, found.contest, found.division, stage)
       const raw = rawScoresFor(found.division, stage, playerId)
       raw.evals[slot] = scores
       saveDb(db)

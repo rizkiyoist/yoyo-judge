@@ -87,7 +87,7 @@ export function createHttpApi(): ScoringApi {
       return request<User[]>(`/users/search${query({ ids: ids.join(',') })}`)
     },
 
-    async listContests(_userId) {
+    async listContests() {
       return request<Contest[]>('/contests')
     },
 
@@ -114,6 +114,13 @@ export function createHttpApi(): ScoringApi {
       return request<Division>(`/contests/${contestId}/divisions/${divisionId}`, {
         method: 'PATCH',
         body: JSON.stringify({ stages }),
+      })
+    },
+
+    async setDivisionStageLock(divisionId, stage, locked) {
+      return request<Division>(`/divisions/${divisionId}/lock`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stage, locked }),
       })
     },
 

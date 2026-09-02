@@ -27,11 +27,12 @@ type DBContest struct {
 }
 
 type DBDivision struct {
-	ID        string `gorm:"primaryKey"`
-	ContestID string `gorm:"index;not null"`
-	Name      string `gorm:"not null"`
-	Stages    string `gorm:"not null"` // JSON: []ScoringStage
-	CreatedAt time.Time
+	ID           string `gorm:"primaryKey"`
+	ContestID    string `gorm:"index;not null"`
+	Name         string `gorm:"not null"`
+	Stages       string `gorm:"not null"`              // JSON: []ScoringStage
+	LockedStages string `gorm:"not null;default:'[]'"` // JSON: []ScoringStage — stages the head judge has frozen against further edits by other judges
+	CreatedAt    time.Time
 }
 
 type DBJudgeAssignment struct {

@@ -24,11 +24,17 @@ export interface ScoringApi {
   getUsers(ids: string[]): Promise<User[]>
 
   // Contests
-  listContests(userId: string): Promise<Contest[]>
+  // Every signed-in judge sees every contest; only its owner and invited
+  // judges can change its scores (enforced per-endpoint, not by filtering
+  // this list).
+  listContests(): Promise<Contest[]>
   getContest(contestId: string): Promise<Contest | null>
   createContest(name: string, year: number, ownerUserId: string): Promise<Contest>
   addDivision(contestId: string, name: string, stages: ScoringStage[]): Promise<Division>
   updateDivisionStages(contestId: string, divisionId: string, stages: ScoringStage[]): Promise<Division>
+  // Head-judge-only: freeze/unfreeze a division's stage so only the
+  // contest owner (not other judges) can still submit scores for it.
+  setDivisionStageLock(divisionId: string, stage: ScoringStage, locked: boolean): Promise<Division>
 
   // Judges
   listJudgeAssignments(contestId: string): Promise<JudgeAssignment[]>

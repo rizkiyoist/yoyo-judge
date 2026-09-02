@@ -43,7 +43,7 @@ const usersById = ref<Record<string, User>>({})
 const resultsByDivisionStage = ref<Record<string, PlayerResult[]>>({})
 
 onMounted(async () => {
-  if (userId.value) await store.fetchContests(userId.value)
+  if (userId.value) await store.fetchContests()
 })
 
 function resultsKey(divisionId: string, stage: ScoringStage): string {

@@ -1,7 +1,7 @@
 # Progress Summary
 
-_Last updated: 2026-09-02 (invite-by-email placeholder judges; env.json Google
-credentials; dev.ps1 local runner)_
+_Last updated: 2026-09-02 (contest visibility opened to all judges; real
+server-side score-write authorization; head-judge stage locking)_
 
 ## Resuming on a new machine
 
@@ -702,8 +702,83 @@ is already waiting for them the first time they do.
   duplicate); resolved that ID via the new `ids=` search param and got the
   right email back with blank names.
 
+### Contest visibility, real score-write authorization, head-judge stage locking — new, 2026-09-02
+
+Previously `listContestsForUser` filtered the contest list to just the ones
+a user owned or was invited to, but critically **no score-submission
+endpoint checked who was calling it at all** — any authenticated user could
+POST a clicker/eval/deduction score for any player/slot in any division,
+regardless of assignment. That gap was purely accidental (the frontend's
+`isOwner`/`myAssignments` checks were the only thing shaping the UI, never
+enforced server-side) but became a real problem once every judge can browse
+every contest. Fixed both, plus added the ability for a head judge to freeze
+a stage's scores.
+
+- **Visibility**: `server/store.go`'s `listAllContests()` replaces
+  `listContestsForUser` — every signed-in user now sees every contest,
+  regardless of ownership or invitation. `ScoringApi.listContests()` lost
+  its now-meaningless `userId` parameter across `client.ts`, `http.ts`,
+  `mock.ts`, `stores/contests.ts`, and `ContestListView.vue`.
+- **Score-write authorization** (`server/store.go`): new
+  `authorizeSlotScoreWrite(divisionID, stage, role, slot, userID)` (for
+  clicker/eval scores — one specific slot) and
+  `authorizeDeductionsWrite(divisionID, stage, userID)` (for major
+  deductions — any clicker judge for that division+stage, matching
+  `ScoreEntryView.vue`'s UI, where any of the 6 clicker judges can enter
+  them). Both let the **contest owner** through unconditionally — that's
+  what makes `ScoreOverrideView.vue`'s "act as any judge" flow keep working,
+  and is also the exemption that lets the owner edit through a lock (see
+  below). `handleSubmitClickerScore`/`handleSubmitDeductions`/
+  `handleSubmitEvalScore` in `server/handlers.go` now call these before
+  writing, returning `403` (wrong/no assignment) or `423 Locked` (see
+  below) instead of silently succeeding.
+- **Head-judge stage locking**: `DBDivision` gained a `LockedStages` JSON
+  column (`server/db_models.go`, auto-migrated — no manual migration step
+  needed, GORM's `AutoMigrate` adds the column to existing `yoyojudge.db`
+  files on next startup); `Division.lockedStages: ScoringStage[]` mirrors
+  it on the frontend (`types.ts`). New endpoint `PATCH
+  /divisions/{divisionId}/lock` (`handleSetDivisionLock`, owner-only —
+  `403` otherwise) toggles one stage's lock via
+  `setDivisionStageLock`/`isStageLocked` in `store.go`. Locking blocks
+  every judge but the owner from submitting scores for that stage (`423`);
+  the owner can still edit/override through it, and can unlock at any time
+  — matches "lock it so *other* judges can't change it," not "freeze it for
+  everyone including me."
+  - Frontend: `ScoringApi.setDivisionStageLock(divisionId, stage, locked)`
+    added to `client.ts`/`http.ts`/`mock.ts` (mock also mirrors the
+    owner-bypass lock check in its `submitClickerScore`/`submitDeductions`/
+    `submitEvalScore`, via a new `assertScoreWritable` — not the finer
+    per-slot assignment check, since the mock has no real per-user security
+    boundary to enforce in the first place).
+  - `ScoreEntryView.vue` (the page ordinary judges use): shows a
+    "Lock scores"/"Unlock scores" toggle button and a 🔒 banner to the
+    owner, and to everyone else a fieldset-disabled (all inputs
+    `disabled`) view with a "locked by the head judge" message once a
+    stage is locked — a client-side courtesy to avoid a round trip that's
+    going to 423 anyway; the real enforcement is server-side.
+- Verified end-to-end against the compiled binary: an uninvited user could
+  list a contest they weren't part of (visibility) but got `403` submitting
+  a score for it; after being invited to clicker slot 1, submitting to slot
+  1 succeeded (`204`) and slot 2 was rejected (`403`); after the owner
+  locked the stage, the assigned judge's submit got `423` while the owner's
+  own submit still succeeded (`204`); a non-owner's attempt to toggle the
+  lock got `403`; after the owner unlocked it, the judge could submit
+  again; a clicker judge (not the exact slot being tested) successfully
+  submitted deductions, confirming the "any clicker judge" rule.
+- **Known remaining gap, not addressed here** (flagged, not fixed — out of
+  scope for this change): `handleAddDivision`, `handleUpdateDivisionStages`,
+  `handleInviteJudge`, and `handleRemoveJudgeAssignment` still have no
+  server-side owner check at all, same as before — only client-side
+  `isOwner` gating. Worth closing given contests are now visible
+  repo-wide, but wasn't part of what was asked for this round.
+
 ## What's not implemented yet
 
+- No server-side owner check on `handleAddDivision`, `handleUpdateDivisionStages`,
+  `handleInviteJudge`, or `handleRemoveJudgeAssignment` — only client-side
+  `isOwner` gating in the Vue views. Contest visibility is now repo-wide
+  (see "Contest visibility..." above), which makes this more worth closing
+  than it used to be.
 - `handler/input.go`'s structs (`SetUp`, `Player`, `RawTex`, `RawPev`) aren't
   mapped to `calc.PlayerInput`/`calc.Contest` or connected to `server/`,
   `request/`, or any controller/usecase layer. These predate `server/` and
