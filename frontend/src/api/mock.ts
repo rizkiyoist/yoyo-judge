@@ -494,7 +494,16 @@ export function createMockApi(): ScoringApi {
       if (!contest) throw new Error('contest not found')
       assertContestWritable(contest, db.sessionUserId)
       for (const division of contest.divisions) {
+        const removed = division.assignments.find((a) => a.id === assignmentId)
         division.assignments = division.assignments.filter((a) => a.id !== assignmentId)
+        // Major deduction is only ever an additional role on top of
+        // clicker/evaluator - drop it too once the judge loses that base role.
+        if (removed && (removed.role === 'clicker' || removed.role === 'evaluator')) {
+          division.assignments = division.assignments.filter(
+            (a) =>
+              !(a.stage === removed.stage && a.userId === removed.userId && a.role === 'major_deduction'),
+          )
+        }
       }
       saveDb(db)
       return delay(undefined)

@@ -480,9 +480,28 @@ func (s *Store) inviteJudge(contestID, divisionID string, stage calc.ScoringStag
 // contest owner can't delete another contest's assignment by pairing their
 // own (owned) contestId in the URL with someone else's assignmentId.
 // Reports whether a row was actually deleted.
+// removeJudgeAssignment deletes an assignment, scoped to contestID so a
+// contest owner can't delete another contest's assignment by pairing their
+// own (owned) contestId with someone else's assignmentId. If the removed
+// assignment was a clicker or evaluator slot, also removes that same
+// judge's major-deduction assignment for the same division+stage - major
+// deduction is only ever valid as an additional role on top of one of
+// those two, never standalone. Reports whether a row was actually deleted.
 func (s *Store) removeJudgeAssignment(contestID, assignmentID string) bool {
-	res := s.db.Where("id = ? AND contest_id = ?", assignmentID, contestID).Delete(&DBJudgeAssignment{})
-	return res.RowsAffected > 0
+	var a DBJudgeAssignment
+	if s.db.Where("id = ? AND contest_id = ?", assignmentID, contestID).First(&a).Error != nil {
+		return false
+	}
+	if s.db.Delete(&a).RowsAffected == 0 {
+		return false
+	}
+	if a.Role == string(RoleClicker) || a.Role == string(RoleEvaluator) {
+		s.db.Where(
+			"contest_id = ? AND division_id = ? AND stage = ? AND user_id = ? AND role = ?",
+			contestID, a.DivisionID, a.Stage, a.UserID, string(RoleMajorDeduction),
+		).Delete(&DBJudgeAssignment{})
+	}
+	return true
 }
 
 // --- players ---

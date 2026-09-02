@@ -38,7 +38,16 @@ const myClickerAssignment = computed(() => myAssignments.value.find((a) => a.rol
 const myEvalAssignment = computed(() => myAssignments.value.find((a) => a.role === 'evaluator'))
 // Only the one dedicated major-deduction judge for this division+stage may
 // record deductions - always an additional role on top of clicker/eval.
-const myMdAssignment = computed(() => myAssignments.value.find((a) => a.role === 'major_deduction'))
+// If nobody's been explicitly assigned yet, the head judge can still enter
+// them here directly (the backend already lets the head judge through
+// unconditionally) rather than only via the override page - covers the
+// common case of forgetting to assign one.
+const noMdAssigned = computed(
+  () => !assignments.value.some((a) => a.divisionId === props.divisionId && a.stage === props.stage && a.role === 'major_deduction'),
+)
+const canEditDeductions = computed(
+  () => myAssignments.value.some((a) => a.role === 'major_deduction') || (isHeadJudge.value && noMdAssigned.value),
+)
 
 const categories = computed(() => (props.stage === 'prelim' ? prelimCategories() : finalCategories()))
 const thirdDeductionLabel = computed(() => (props.stage === 'prelim' ? 'Detach' : 'Cut'))
@@ -74,7 +83,7 @@ async function saveClicker(playerId: string, field: 'plus' | 'minus', value: num
 }
 
 async function saveDeduction(playerId: string, field: 'stop' | 'discard' | 'cut', value: number) {
-  if (inputsDisabled.value || !myMdAssignment.value) return
+  if (inputsDisabled.value || !canEditDeductions.value) return
   const existing = rawFor(playerId)?.deductions ?? { stop: 0, discard: 0, cut: 0 }
   const next = { ...existing, [field]: value }
   const key = statusKey('deduction', playerId, field)
@@ -211,8 +220,11 @@ async function saveEval(playerId: string, category: string, value: number) {
       </fieldset>
     </div>
 
-    <div v-if="myMdAssignment" class="card">
+    <div v-if="canEditDeductions" class="card">
       <h2>Major deduction judge</h2>
+      <p v-if="noMdAssigned" class="muted" style="margin-top: -6px">
+        No major deduction judge assigned yet - entering as head judge by default.
+      </p>
       <fieldset :disabled="inputsDisabled" style="border: 0; padding: 0; margin: 0">
       <table>
         <thead>
