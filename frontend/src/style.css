@@ -17,10 +17,8 @@
 
 :root {
   --tex-color: #1d4ed8;
-  --tex-bg: rgba(29, 78, 216, 0.08);
   --tex-bg-header: rgba(29, 78, 216, 0.28);
   --pev-color: #b45309;
-  --pev-bg: rgba(180, 83, 9, 0.08);
   --pev-bg-header: rgba(180, 83, 9, 0.28);
 }
 
@@ -35,10 +33,8 @@
   --danger: #f08a75;
   --success: #4ade80;
   --tex-color: #93c5fd;
-  --tex-bg: rgba(147, 197, 253, 0.12);
   --tex-bg-header: rgba(147, 197, 253, 0.32);
   --pev-color: #fcd34d;
-  --pev-bg: rgba(252, 211, 77, 0.12);
   --pev-bg-header: rgba(252, 211, 77, 0.32);
   color-scheme: dark;
 }
@@ -224,27 +220,14 @@ th {
   font-weight: 700;
 }
 
-.place-1 { color: #b8860b; font-weight: 700; }
-.place-2 { color: #708090; font-weight: 700; }
-.place-3 { color: #a0522d; font-weight: 700; }
-
-/* Technical execution/evaluation vs performance evaluation columns in the
-   results table - distinct colors so the two scoring groups are easy to
-   tell apart at a glance. */
-.col-tex {
-  color: var(--tex-color);
-  background: var(--tex-bg);
-}
-.col-pev {
-  color: var(--pev-color);
-  background: var(--pev-bg);
-}
-/* Header cells get a darker/more-saturated tint than the body cells so the
-   header still reads as "heavier" than the score row, matching the IYYF
-   RESULT sheet in Excel. */
+/* T.Ex/T.Ev vs P.Ev column groups in the results table - only the header
+   cells carry the distinct tint (matching the IYYF FINAL-SCORE sheet in
+   Excel, where only the header row is colored); body cells stay flat. */
 th.col-tex {
+  color: var(--tex-color);
   background: var(--tex-bg-header);
 }
 th.col-pev {
+  color: var(--pev-color);
   background: var(--pev-bg-header);
 }

@@ -124,7 +124,14 @@ async function toggleLock(contest: Contest) {
 
 function divisionResultsTable(division: Division, results: PlayerResult[]): string {
   const categories = finalCategories()
-  const categoryHeaders = categories.map((c) => `<th>${escapeHtml(FINAL_CATEGORY_LABELS[c.name] ?? c.name)}</th>`).join('')
+  const tevCategories = categories.filter((c) => c.group === 'TEv')
+  const pevCategories = categories.filter((c) => c.group === 'PEv')
+  const tevHeaders = tevCategories
+    .map((c) => `<th class="col-tex">${escapeHtml(FINAL_CATEGORY_LABELS[c.name] ?? c.name)}</th>`)
+    .join('')
+  const pevHeaders = pevCategories
+    .map((c) => `<th class="col-pev">${escapeHtml(FINAL_CATEGORY_LABELS[c.name] ?? c.name)}</th>`)
+    .join('')
   const rows = [...results]
     .sort((a, b) => a.place - b.place)
     .map((r) => {
@@ -152,8 +159,16 @@ function divisionResultsTable(division: Division, results: PlayerResult[]): stri
   <table>
     <thead>
       <tr>
-        <th>Place</th><th>Player</th><th>TE</th>${categoryHeaders}
-        <th>Categories Total</th><th>E.Total</th><th>Stop</th><th>Discard</th><th>Cut</th><th>Final Score</th>
+        <th rowspan="2">Place</th><th rowspan="2">Player</th><th class="col-tex" rowspan="2">T.Ex</th>
+        <th class="col-tex" colspan="${tevCategories.length}">T.Ev</th>
+        <th class="col-pev" colspan="${pevCategories.length}">P.Ev</th>
+        <th rowspan="2">Categories Total</th><th rowspan="2">E.Total</th>
+        <th colspan="3">M. Deduction</th>
+        <th rowspan="2">Final Score</th>
+      </tr>
+      <tr>
+        ${tevHeaders}${pevHeaders}
+        <th>Stop</th><th>Discard</th><th>Cut</th>
       </tr>
     </thead>
     <tbody>
@@ -196,6 +211,8 @@ async function downloadContestResults(contest: Contest) {
   table { border-collapse: collapse; width: 100%; margin-top: 8px; }
   th, td { border: 1px solid #e0dee4; padding: 6px 10px; text-align: left; font-size: 13px; }
   th { background: #f6f5f9; }
+  th.col-tex { color: #1d4ed8; background: rgba(29, 78, 216, 0.28); }
+  th.col-pev { color: #b45309; background: rgba(180, 83, 9, 0.28); }
 </style>
 </head>
 <body>

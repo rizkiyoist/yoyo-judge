@@ -37,6 +37,8 @@ const PRELIM_CATEGORY_LABELS: Record<string, string> = {
   BDY: 'Body Control',
 }
 const categoryLabels = computed(() => (props.stage === 'prelim' ? PRELIM_CATEGORY_LABELS : FINAL_CATEGORY_LABELS))
+const tevCategories = computed(() => categories.value.filter((c) => c.group === 'TEv'))
+const pevCategories = computed(() => categories.value.filter((c) => c.group === 'PEv'))
 
 function categoriesTotal(r: PlayerResult): number {
   return (r.groupTotals.TEv ?? 0) + (r.groupTotals.PEv ?? 0)
@@ -94,30 +96,38 @@ function toggle(playerId: string) {
       <table v-if="sortedResults.length" style="min-width: max-content">
         <thead>
           <tr>
-            <th>Place</th>
-            <th>#</th>
-            <th>Player</th>
-            <th class="col-tex">TE</th>
-            <th v-for="cat in categories" :key="cat.name" :class="cat.group === 'TEv' ? 'col-tex' : 'col-pev'">
+            <th rowspan="2">Place</th>
+            <th rowspan="2">#</th>
+            <th rowspan="2">Player</th>
+            <th class="col-tex" rowspan="2">T.Ex</th>
+            <th v-if="tevCategories.length" class="col-tex" :colspan="tevCategories.length">T.Ev</th>
+            <th v-if="pevCategories.length" class="col-pev" :colspan="pevCategories.length">P.Ev</th>
+            <th rowspan="2">Categories Total</th>
+            <th rowspan="2">E.Total</th>
+            <th colspan="3">M. Deduction</th>
+            <th rowspan="2">Final Score</th>
+            <th rowspan="2"></th>
+          </tr>
+          <tr>
+            <th v-for="cat in tevCategories" :key="cat.name" class="col-tex">
               {{ categoryLabels[cat.name] ?? cat.name }}
             </th>
-            <th>Categories Total</th>
-            <th>E.Total</th>
+            <th v-for="cat in pevCategories" :key="cat.name" class="col-pev">
+              {{ categoryLabels[cat.name] ?? cat.name }}
+            </th>
             <th>Stop</th>
             <th>Discard</th>
             <th>{{ thirdDeductionLabel }}</th>
-            <th>Final Score</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
           <template v-for="r in sortedResults" :key="r.playerId">
             <tr>
-              <td :class="'place-' + r.place">{{ r.place }}</td>
+              <td>{{ r.place }}</td>
               <td>{{ players.find((p) => p.id === r.playerId)?.number }}</td>
               <td>{{ r.name }}</td>
-              <td class="col-tex">{{ r.technicalExecution.toFixed(2) }}</td>
-              <td v-for="cat in categories" :key="cat.name" :class="cat.group === 'TEv' ? 'col-tex' : 'col-pev'">
+              <td>{{ r.technicalExecution.toFixed(2) }}</td>
+              <td v-for="cat in categories" :key="cat.name">
                 {{ (r.categoryScores[cat.name] ?? 0).toFixed(2) }}
               </td>
               <td>{{ categoriesTotal(r).toFixed(2) }}</td>
