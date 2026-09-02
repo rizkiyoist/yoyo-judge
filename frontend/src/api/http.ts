@@ -82,6 +82,11 @@ export function createHttpApi(): ScoringApi {
       return request<User[]>(`/users/search${query({ q })}`)
     },
 
+    async getUsers(ids) {
+      if (!ids.length) return []
+      return request<User[]>(`/users/search${query({ ids: ids.join(',') })}`)
+    },
+
     async listContests(_userId) {
       return request<Contest[]>('/contests')
     },
@@ -116,10 +121,10 @@ export function createHttpApi(): ScoringApi {
       return request<JudgeAssignment[]>(`/contests/${contestId}/judges`)
     },
 
-    async inviteJudge(contestId, divisionId, stage, userId, role: JudgeRole, slot) {
+    async inviteJudge(contestId, divisionId, stage, identity, role: JudgeRole, slot) {
       return request<JudgeAssignment>(`/contests/${contestId}/judges`, {
         method: 'POST',
-        body: JSON.stringify({ divisionId, stage, userId, role, slot }),
+        body: JSON.stringify({ divisionId, stage, ...identity, role, slot }),
       })
     },
 

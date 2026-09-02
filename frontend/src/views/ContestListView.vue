@@ -71,23 +71,26 @@ function topThreeStage(stages: ScoringStage[]): ScoringStage | null {
 watch(
   () => store.contests,
   async (contests: Contest[]) => {
-    const allUsers = await api.searchUsers('example.com')
-    usersById.value = Object.fromEntries(allUsers.map((u) => [u.id, u]))
+    const ids = new Set(contests.map((c) => c.ownerUserId))
     for (const contest of contests) {
       judgesByContest.value[contest.id] = await api.listJudgeAssignments(contest.id)
+      for (const a of judgesByContest.value[contest.id]) ids.add(a.userId)
       for (const division of contest.divisions) {
         for (const stage of division.stages) {
           resultsByDivisionStage.value[resultsKey(division.id, stage)] = await api.getResults(division.id, stage)
         }
       }
     }
+    const users = await api.getUsers([...ids])
+    usersById.value = Object.fromEntries(users.map((u) => [u.id, u]))
   },
   { deep: false },
 )
 
 function judgeName(userId: string): string {
   const u = usersById.value[userId]
-  return u ? `${u.firstName} ${u.lastName}` : userId
+  if (!u) return userId
+  return `${u.firstName} ${u.lastName}`.trim() || `${u.email} (not signed in yet)`
 }
 
 // A judge assigned to both prelim and final gets one JudgeAssignment per

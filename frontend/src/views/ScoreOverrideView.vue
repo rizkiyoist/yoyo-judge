@@ -53,8 +53,10 @@ async function load() {
   players.value = await api.listPlayers(props.divisionId)
   assignments.value = await api.listJudgeAssignments(props.contestId)
   rawScores.value = await api.getRawScores(props.divisionId, props.stage)
-  const allUsers = await api.searchUsers('example.com')
-  usersById.value = Object.fromEntries(allUsers.map((u) => [u.id, u]))
+  const ids = new Set(assignments.value.map((a) => a.userId))
+  if (contest.value) ids.add(contest.value.ownerUserId)
+  const users = await api.getUsers([...ids])
+  usersById.value = Object.fromEntries(users.map((u) => [u.id, u]))
 }
 
 onMounted(load)
@@ -65,7 +67,8 @@ function rawFor(playerId: string): PlayerRawScores | undefined {
 
 function judgeName(userId: string): string {
   const u = usersById.value[userId]
-  return u ? `${u.firstName} ${u.lastName}` : userId
+  if (!u) return userId
+  return `${u.firstName} ${u.lastName}`.trim() || `${u.email} (not signed in yet)`
 }
 
 async function saveClicker(playerId: string, field: 'plus' | 'minus', value: number) {

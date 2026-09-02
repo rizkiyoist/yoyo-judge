@@ -50,8 +50,10 @@ watch(
 async function load() {
   contest.value = await api.getContest(props.contestId)
   assignments.value = await api.listJudgeAssignments(props.contestId)
-  const allSearched = await api.searchUsers('example.com')
-  usersById.value = Object.fromEntries(allSearched.map((u) => [u.id, u]))
+  const ids = new Set(assignments.value.map((a) => a.userId))
+  if (contest.value) ids.add(contest.value.ownerUserId)
+  const users = await api.getUsers([...ids])
+  usersById.value = Object.fromEntries(users.map((u) => [u.id, u]))
 }
 
 onMounted(load)
@@ -60,10 +62,23 @@ async function search() {
   searchResults.value = query.value.trim() ? await api.searchUsers(query.value) : []
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Only offered once the search comes back empty for a query that's a
+// plausible email — avoids suggesting it while results are still loading
+// or for a plain name search with no matches.
+const canInviteByEmail = computed(() => !searchResults.value.length && EMAIL_RE.test(query.value.trim()))
+
 // Invites always land on whichever stage tab is currently active.
-async function invite(user: User) {
+async function invite(identity: { userId: string } | { email: string }) {
   if (!selectedDivisionId.value) return
-  await api.inviteJudge(props.contestId, selectedDivisionId.value, selectedStage.value, user.id, selectedRole.value, selectedSlot.value)
+  await api.inviteJudge(
+    props.contestId,
+    selectedDivisionId.value,
+    selectedStage.value,
+    identity,
+    selectedRole.value,
+    selectedSlot.value,
+  )
   query.value = ''
   searchResults.value = []
   await load()
@@ -76,7 +91,9 @@ async function remove(assignment: JudgeAssignment) {
 
 function userLabel(userId: string): string {
   const u = usersById.value[userId]
-  return u ? `${u.firstName} ${u.lastName} (${u.email})` : userId
+  if (!u) return userId
+  const name = `${u.firstName} ${u.lastName}`.trim()
+  return name ? `${name} (${u.email})` : `${u.email} (not signed in yet)`
 }
 
 function isHeadJudge(userId: string): boolean {
@@ -133,9 +150,16 @@ const evalAssignments = computed(() =>
       </div>
 
       <div v-if="searchResults.length" class="row" style="flex-direction: column; align-items: stretch">
-        <button v-for="u in searchResults" :key="u.id" @click="invite(u)">
+        <button v-for="u in searchResults" :key="u.id" @click="invite({ userId: u.id })">
           Invite {{ u.firstName }} {{ u.lastName }} — {{ u.email }}
         </button>
+      </div>
+      <div v-else-if="canInviteByEmail" class="row" style="flex-direction: column; align-items: stretch">
+        <button @click="invite({ email: query.trim() })">Invite {{ query.trim() }} (not registered yet)</button>
+        <p class="muted" style="font-size: 0.85em; margin-top: 4px">
+          No account with this email yet — inviting reserves their slot, and they'll see this
+          contest as soon as they sign in with this email.
+        </p>
       </div>
     </div>
 

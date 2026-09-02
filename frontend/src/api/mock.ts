@@ -295,6 +295,11 @@ export function createMockApi(): ScoringApi {
       return delay(matches)
     },
 
+    async getUsers(ids) {
+      const idSet = new Set(ids)
+      return delay(db.users.filter((u) => idSet.has(u.id)))
+    },
+
     async listContests(userId) {
       const owned = db.contests.filter((c) => c.ownerUserId === userId)
       const invited = db.contests.filter(
@@ -347,9 +352,25 @@ export function createMockApi(): ScoringApi {
       return delay(contest.divisions.flatMap((d) => d.assignments))
     },
 
-    async inviteJudge(contestId, divisionId, stage, userId, role, slot) {
+    async inviteJudge(contestId, divisionId, stage, identity, role, slot) {
       const found = findDivision(db, divisionId)
       if (!found) throw new Error('division not found')
+      let userId: string
+      if ('userId' in identity) {
+        userId = identity.userId
+      } else {
+        const email = identity.email.trim().toLowerCase()
+        const existing = db.users.find((u) => u.email.toLowerCase() === email)
+        if (existing) {
+          userId = existing.id
+        } else {
+          // Placeholder account, no name yet — this is what makes the
+          // invite already visible the first time this email actually logs in.
+          const placeholder: User = { id: uid('u'), firstName: '', lastName: '', email }
+          db.users.push(placeholder)
+          userId = placeholder.id
+        }
+      }
       found.division.assignments = found.division.assignments.filter(
         (a) => !(a.stage === stage && a.role === role && a.slot === slot),
       )

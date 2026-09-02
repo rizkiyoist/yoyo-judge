@@ -1,33 +1,46 @@
 # Progress Summary
 
-_Last updated: 2026-09-02 (added "resuming on a new machine" notes; no code changes this session)_
+_Last updated: 2026-09-02 (invite-by-email placeholder judges; env.json Google
+credentials; dev.ps1 local runner)_
 
 ## Resuming on a new machine
 
-Repo state as of this note: `main`, clean working tree, HEAD = `b5f85c8`
-("Single-binary deploy support: embedded frontend, BASE_PATH, TLS, port
-config") — everything described below is already committed and pushed, so
-`git clone`/`git pull` is all that's needed for the code itself. What
-**won't** come with a fresh clone (all gitignored):
+Repo state as of this note: `main` — everything described below is already
+committed and pushed, so `git clone`/`git pull` is all that's needed for the
+code itself. What **won't** come with a fresh clone (all gitignored):
 
-- `env.json` (copy from `env.json.example`) and `dbconfig.yml` (copy from
-  `dbconfig.yml.example`) — MySQL connection settings. Currently unused at
-  runtime (`main.go` no longer calls `config.InitSQL`, see "Real production
-  deployment" below), but `sql-migrate` still reads `dbconfig.yml` directly
-  if you touch `migration/`.
+- `env.json` (copy from `env.json.example`) — now carries real secrets: a
+  `"google"` section with `client_id`/`client_secret`/`redirect_url` for
+  Google OAuth, loaded by `envjson.go` at startup (see "Google credentials
+  via env.json" below). The old `"mysql"` section was removed — nothing
+  reads it, superseded by SQLite (see below). `dbconfig.yml` is likewise
+  unused now, only relevant if you touch the old `migration/` folder.
 - `bin/`, `dist/` — build output. Run `./build.ps1` (repo root, PowerShell)
   to regenerate both the Windows/Linux backend binaries and the embedded
   frontend `dist/`. **`go build .`/`go run .` will fail on a fresh clone**
   until the frontend step of `build.ps1` has populated `dist/` at least
-  once, since `static.go` embeds it at compile time.
-- `frontend/node_modules/` — run `npm install` in `frontend/` first.
+  once, since `static.go` embeds it at compile time — or use `./dev.ps1`
+  (see below), which creates a placeholder automatically.
+- `frontend/node_modules/` — run `npm install` in `frontend/` first (or use
+  `./dev.ps1`, which does this for you).
+- `yoyojudge.db` (SQLite file, path overridable via `DATABASE_PATH`) — the
+  actual persisted app data (contests, users, sessions, scores). Not in git
+  (correctly — it's real data, not code). Auto-created + seeded with demo
+  data on first run if missing; **don't let a redeploy silently create a
+  fresh empty one** in place of an existing one with real data on it.
 - Production `cert.pem`/`key.pem` live only on the deploy server
   (`103.134.154.210`, `rizkiyoist.duckdns.org`), not in this repo or
   expected on a dev machine — see the acme.sh steps under "Real production
   deployment" below if that ever needs to be redone from scratch.
 
-No other local-only state exists — the app has no real database yet
-(everything is in-memory in `server/store.go`, reset on restart).
+**Local dev gotcha (Windows):** the default port `8081` (and other ports —
+checked `8090`) can fall inside a Windows-reserved TCP exclusion range (seen
+on one dev machine: `8056–8155`, from Hyper-V/WSL2), causing `listen tcp
+:8081: bind: An attempt was made to access a socket in a way forbidden by
+its access permissions.` Check with `netsh interface ipv4 show
+excludedportrange protocol=tcp` and run with e.g. `PORT=9000
+./bin/yoyo-judge.exe` instead — this is local-machine-specific, not a code
+bug, and doesn't affect the actual deploy server.
 
 ## Goal
 
@@ -502,26 +515,207 @@ export DuckDNS_Token="..."
 Auto-renews via `acme.sh`'s own cron job; the backend just needs restarting
 after a renewal to pick up the refreshed files.
 
-Not yet done: no real persistence (everything resets on backend restart);
-no real authentication; `handler/input.go`'s structs and the `users`/
-`user_socials` GORM models aren't connected to any of this yet; the
-reload-into-404-on-a-deep-route issue is inherent to serving the frontend
-as static files from nginx (no SPA-fallback rule there) and is unfixed —
-would need either an nginx `try_files` rule or switching the frontend to
-hash-based routing.
+Not yet done at the time: no real persistence (everything resets on backend
+restart); no real authentication; the reload-into-404-on-a-deep-route issue
+is inherent to serving the frontend as static files from nginx (no
+SPA-fallback rule there) and is unfixed — would need either an nginx
+`try_files` rule or switching the frontend to hash-based routing.
+**Superseded by the next section** — both persistence and auth are now
+real.
+
+### SQLite persistence + Google OAuth login — new, 2026-09-02
+
+Replaces the in-memory store with a SQLite-backed one and adds real Google
+sign-in, closing out the two biggest items from "what's not implemented"
+above. CGO-free via `github.com/glebarez/sqlite` (no CGO/gcc toolchain
+needed to build, unlike `mattn/go-sqlite3` — matters for the Windows→Linux
+cross-compile `build.ps1` already does).
+
+- `server/db_models.go` — GORM models: `DBUser`, `DBSession`, `DBContest`,
+  `DBDivision`, `DBJudgeAssignment`, `DBPlayer`, `DBPlayerRawScore`. Raw
+  judge scores (clicker inputs, eval scores, deductions) are stored as JSON
+  blobs per player+stage rather than fully normalized columns.
+- `server/db.go` — `OpenDB()` opens the SQLite file at `DATABASE_PATH`
+  (default `yoyojudge.db`, created next to the binary), enables WAL mode +
+  `synchronous=NORMAL`, and `AutoMigrate`s all the models — no separate
+  migration step needed, unlike the old `sql-migrate`/`migration/` path.
+  `SeedIfEmpty()` runs the same demo-data seed as before (identical judge
+  names/contest/players to keep continuity with earlier manual testing),
+  but only when the `users` table is empty — safe to call on every startup.
+- `server/store.go` — rewritten from in-memory maps to GORM queries
+  end-to-end; the `sync.Mutex` is gone (SQLite handles its own
+  concurrency). Session tokens are now random 64-char hex strings stored in
+  a real `sessions` table, not "the token is just the user ID" as before.
+- `server/auth.go` — `bearerUser` now looks up the sessions table; logout
+  deletes the session row instead of being a no-op.
+- `server/oauth.go` — full Google OAuth2 authorization-code flow
+  (`golang.org/x/oauth2` + `google.Endpoint`): `/auth/google` redirects to
+  Google, `/auth/google/callback` exchanges the code, fetches userinfo,
+  upserts the user (matched by Google `sub` first, falling back to email),
+  creates a session, and redirects to the frontend with `?token=...`.
+  CSRF-style `state` values are single-use, in-memory, 5-minute expiry.
+  Requires three env vars to activate (`isGoogleConfigured()` checks all
+  three); without them, `/auth/google*` returns 503 and the email/demo
+  login path (still present) keeps working:
+  - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — from a Google Cloud OAuth
+    client.
+  - `GOOGLE_REDIRECT_URL` — must exactly match what's registered in Google
+    Cloud, e.g. `https://rizkiyoist.duckdns.org:8081/yoyojudge/api/auth/google/callback`.
+  - `FRONTEND_URL` (optional) — where to redirect after login, e.g.
+    `https://rizkiyoist.duckdns.org/yoyojudge`. If unset, it's inferred
+    from the incoming request's scheme/host/`BASE_PATH`, which is correct
+    for the embedded single-binary deploy but **must be set explicitly for
+    the cross-origin split deploy** (the actual production shape), since
+    there the backend's own host isn't the frontend's host.
+- Frontend: `AuthCallbackView.vue` (new, `/auth/callback` public route)
+  reads `?token=`, stores it, resets the auth store, and redirects home.
+  `LoginView.vue` now leads with a "Continue with Google" button (hidden
+  when `VITE_USE_MOCK=true`, since the mock has no OAuth backend); the old
+  email/demo-user login is still there, collapsed under a `<details>`.
+- **Local dev / new-machine gotcha**: `yoyojudge.db` is gitignored and
+  local to wherever the backend last ran — a fresh clone or a new machine
+  starts with an empty, freshly-seeded DB, not whatever data existed
+  elsewhere. On the actual deploy server, treat `yoyojudge.db` as real data
+  to back up, not a build artifact to regenerate.
+
+### Google credentials via env.json — new, 2026-09-02
+
+`envjson.go` (repo root) — `loadEnvJSON()`, called first thing in
+`main()`, reads `env.json`'s new `"google"` section
+(`client_id`/`client_secret`/`redirect_url`) and calls `os.Setenv` for
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URL` — but only
+for whichever of those three isn't already set in the real environment
+(`setEnvIfUnset`), so a real deployment's env vars always win and this is
+purely a local-dev convenience (no more remembering to `export` three vars
+every session). `env.json`'s old unused `"mysql"` section was removed
+(nothing read it — see "SQLite persistence" above) while touching this
+file. `env.json.example` mirrors the new shape. Verified: ran the compiled
+binary with a temp `env.json` containing fake credentials and confirmed
+`/api/auth/google`'s redirect carried that exact `client_id`.
+
+**Google Cloud Console gotchas hit while setting this up for real** (worth
+reading before touching OAuth config again):
+- "Authorized JavaScript origins" and "Authorized redirect URIs" are two
+  separate fields with different rules — origins must be bare
+  `scheme://host:port` (no path, no trailing slash: `http://localhost:5000`),
+  while redirect URIs need the full exact callback path
+  (`http://localhost:5000/yoyojudge/api/auth/google/callback`). This app's
+  server-side redirect flow doesn't strictly need an origin entry at all;
+  the actual failure mode when the redirect URI is missing/wrong is Google
+  showing "this app doesn't comply with Google's OAuth 2.0 policy" (or the
+  more classic `Error 400: redirect_uri_mismatch`) with the offending
+  `redirect_uri` printed in the request details — that value is exactly
+  what needs to be added, verbatim, to "Authorized redirect URIs".
+- Google's console warns it can take 5 minutes to a few hours to propagate
+  a saved change — a retry immediately after saving isn't a reliable test
+  that a fix didn't work.
+
+### dev.ps1: one-command local dev runner — new, 2026-09-02
+
+`dev.ps1` (repo root) — `./dev.ps1` opens two PowerShell windows: backend
+(`go run .`, `PORT` defaulting to **5000**, not the production default
+8081) and frontend (`npm run dev`, Vite on `:5173`, which already proxies
+`/yoyojudge/*` to the backend per `vite.config.ts`). Ensures `./dist`
+exists first (a placeholder file if missing — `go:embed` needs *something*
+there even though dev mode never serves it, Vite serves the frontend
+instead) and runs `npm install` if `frontend/node_modules` is missing.
+
+- **Port 5000, not 8081**: 8081 (and other ports — `8090` was also tried)
+  fell inside a Windows-reserved TCP exclusion range on the dev machine
+  this was built on (`8056–8155`, likely from Hyper-V/WSL2) — confirmed
+  with `netsh interface ipv4 show excludedportrange protocol=tcp`, which
+  is worth checking first on a new machine before assuming 5000 is safe
+  there too. The failure mode is `listen tcp :8081: bind: An attempt was
+  made to access a socket in a way forbidden by its access permissions` —
+  a Windows-level block, not a Go or app bug.
+- **`FRONTEND_URL` is set explicitly** to `http://localhost:5173` for the
+  backend process. This was a real bug hit while testing: without it,
+  `server/oauth.go`'s `frontendBaseURL()` infers the post-Google-login
+  redirect from the backend's own request host (`localhost:$Port`), so the
+  browser lands on the backend's embedded `./dist` instead of the actual
+  dev frontend at `:5173`. That embedded `dist/` is whatever the last
+  `./build.ps1` produced — typically a **production**-configured build
+  whose baked-in API base URL points at the real deployed backend, not the
+  local one — so a session token minted by the local backend looks invalid
+  there, and the login flow hangs forever on `AuthCallbackView.vue`'s
+  "Finishing sign-in…" screen (confirmed by finding
+  `rizkiyoist.duckdns.org:8081/yoyojudge/api` baked into
+  `dist/assets/*.js` while debugging). Always test at `http://localhost:5173`,
+  not `http://localhost:5000/yoyojudge`, for this reason.
+- Google login still needs real credentials (via `env.json` or env vars,
+  see above) to work at all locally; the script prints a reminder pointing
+  at the "Demo / email login" section on the login page as a fallback.
+
+### Invite a judge by email who hasn't signed in yet — new, 2026-09-02
+
+Previously, inviting a judge required them to already exist as a `User` row
+— in practice, only the seeded demo accounts or someone who'd already
+logged in at least once via Google. Now the head judge can invite by email
+directly even if nobody with that email has ever signed in, and the invite
+is already waiting for them the first time they do.
+
+- `server/store.go`'s `findOrCreateUserByEmail(email)` — looks up a user by
+  email (case-insensitive), or creates a **placeholder** `DBUser` with only
+  `Email` set (blank first/last name, no Google ID). `usersByIDs(ids
+  []string)` — new batch lookup, resolves a list of user IDs to `User`s in
+  one query.
+- `server/handlers.go`'s `handleInviteJudge` now accepts an optional
+  `email` field alongside the existing `userId` — if `userId` is empty and
+  `email` is set, it resolves (or creates) the user via
+  `findOrCreateUserByEmail` first. `handleSearchUsers` (mounted at the
+  existing public `/users/search` route) now also accepts an `ids`
+  (comma-separated) query param as an alternative to `q`, for the batch
+  lookup above — kept on the same route rather than adding a new one, since
+  it's the same trust level as the free-text search already there.
+- `server/store.go`'s `findOrCreateUserByGoogle` — **bug fixed alongside
+  this**: it already matched an existing user by email and linked the
+  Google ID, but never filled in the name, so a placeholder invited by
+  email would stay nameless forever even after actually signing in with
+  Google. Now backfills `first_name`/`last_name` from the Google profile
+  whenever both are currently blank, and never overwrites a name that's
+  already set (verified with a throwaway Go test exercising both cases,
+  deleted after passing — see this section's history for the exact
+  scenario if it needs re-verifying).
+- Frontend: `ScoringApi.inviteJudge`'s identity parameter changed from a
+  bare `userId: string` to `{ userId: string } | { email: string }` — a
+  breaking signature change to `client.ts`, `http.ts`, and `mock.ts`
+  together, plus the one call site (`JudgeManagementView.vue`). New
+  `ScoringApi.getUsers(ids: string[])` (implemented in both `http.ts` and
+  `mock.ts`) replaced a pre-existing hack in **four** views
+  (`JudgeManagementView.vue`, `ScoreOverrideView.vue`, `ResultsView.vue`,
+  `ContestListView.vue`) that all called `api.searchUsers('example.com')`
+  to bulk-resolve every judge's name for display — that only ever worked
+  because every seeded demo user happens to share that email domain, and
+  would have silently broken (showing raw user IDs) for anyone invited by
+  a real email through this new feature. All four now resolve exactly the
+  user IDs they actually reference (assignments + contest owner) via
+  `getUsers`. Each view's name-formatting helper (`userLabel`/`judgeName`/
+  `judgeLabel`) also now falls back to `"<email> (not signed in yet)"`
+  instead of a blank string when first/last name are both empty.
+- `LoginView.vue`'s own `searchUsers('example.com')` call (for the "seeded
+  demo users" quick-login list) was deliberately left alone — that's
+  actually listing demo accounts specifically, not resolving arbitrary
+  known IDs, so the same fix doesn't apply there.
+- Verified end-to-end against the compiled binary: invited a fabricated
+  email, confirmed a blank-named `DBUser` was created; invited the same
+  email again and confirmed the *same* user ID was reused (not a
+  duplicate); resolved that ID via the new `ids=` search param and got the
+  right email back with blank names.
 
 ## What's not implemented yet
 
-- No persistence for contests/players/scores — `server/store.go` is
-  in-memory only; everything is lost on backend restart. Nothing maps to
-  the `users`/`user_socials` GORM models or MySQL yet.
 - `handler/input.go`'s structs (`SetUp`, `Player`, `RawTex`, `RawPev`) aren't
   mapped to `calc.PlayerInput`/`calc.Contest` or connected to `server/`,
-  `request/`, or any controller/usecase layer.
+  `request/`, or any controller/usecase layer. These predate `server/` and
+  look increasingly redundant with `server/db_models.go` + `server/types.go`
+  now that real persistence exists — worth revisiting whether they're still
+  needed at all rather than mapping them.
 - `OptionalSetUpPrelim` in `handler/input.go` is still an empty stub.
-- Real authentication — both `controller/auth`'s Google login stub and
-  `server/auth.go`'s bearer-token-is-the-userid scheme are stand-ins, not
-  real auth.
+- The unused `users`/`user_socials` MySQL/GORM models (`domain/model/`),
+  the `controller/auth` Google-login stub (superseded by `server/oauth.go`),
+  and `config/`'s MySQL connector are all now dead code relative to the
+  SQLite path above — candidates for deletion once confirmed nothing else
+  depends on them.
 - The old excelize-based writer/reader path (`library/writer`,
   `library/reader`, `library/calc/const.go`) is superseded but still in the
   tree — worth deleting once nothing needs it, along with the working-copy
@@ -531,26 +725,19 @@ hash-based routing.
 
 ## Suggested next steps
 
-1. **TODO, deliberately deferred:** decide on real persistence. Candidate:
-   **SQLite** instead of MySQL — `sql-migrate` (already used for
-   `migration/`) supports a `sqlite3` dialect natively, so the existing
-   migration tooling carries over; the two current migrations (`users`,
-   `user_socials`) would need their MySQL-specific syntax (`ENUM`,
-   `AUTO_INCREMENT`, `ON UPDATE CURRENT_TIMESTAMP`) rewritten for SQLite,
-   and new migrations added for contests/divisions/judge
-   assignments/players/raw scores (none of which exist as tables yet
-   regardless of which DB is chosen). `config/sql.go` would need a
-   `gorm.io/driver/sqlite` code path alongside the MySQL one. The generic
-   `Repository[T]` in `domain/service/generic.go` is already there to build
-   on. Holding off on this until after getting real users testing the
-   in-memory-backed site, per user's call — revisit once that feedback is
-   in. Replacing `server/store.go`'s in-memory maps with real queries
-   shouldn't require changing the HTTP handler layer's shape.
-2. Flesh out real authentication (replacing both the Google login stub and
-   `server/auth.go`'s trivial bearer scheme) — sessions/JWTs plus actual
-   credential verification.
-3. Map `handler/input.go`'s structs onto `server/`'s types where they fit,
-   or retire whichever turns out redundant.
+1. **Done (2026-09-02):** ~~decide on real persistence~~ — SQLite shipped
+   (see "SQLite persistence + Google OAuth login" above), superseding the
+   MySQL/`sql-migrate` plan this item used to describe.
+2. **Done (2026-09-02):** ~~flesh out real authentication~~ — Google OAuth
+   shipped alongside SQLite persistence. Still only Google as a provider,
+   and no password-based account option.
+3. Decide the fate of `handler/input.go`'s structs, the `domain/model/`
+   `users`/`user_socials` GORM models, `controller/auth`, and `config/`'s
+   MySQL connector — all look like dead code now that `server/` has its own
+   types/models/auth backed by SQLite. Likely just deletable, but confirm
+   nothing still imports them first.
 4. Once the native calc engine + backend are trusted end-to-end, remove the
    superseded `library/writer`/`library/reader`/`library/calc/const.go` code
    and the root-level `.xlsx`/`.xlsxbak` working copies.
+5. Add backend tests (`server/` currently has none) — now more valuable
+   than before since real persistence/auth logic exists to break.

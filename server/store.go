@@ -74,8 +74,23 @@ func (s *Store) findOrCreateUserByGoogle(googleID, email, firstName, lastName st
 	}
 	var existing DBUser
 	if s.db.Where("email = ?", email).First(&existing).Error == nil {
+		updates := map[string]any{}
 		if existing.GoogleID == "" {
-			s.db.Model(&existing).Update("google_id", googleID)
+			updates["google_id"] = googleID
+		}
+		// Backfill the name for a placeholder user created by an email
+		// invite (findOrCreateUserByEmail leaves both blank) — never
+		// overwrite a name that's already set.
+		if existing.FirstName == "" && existing.LastName == "" {
+			updates["first_name"] = firstName
+			updates["last_name"] = lastName
+		}
+		if len(updates) > 0 {
+			s.db.Model(&existing).Updates(updates)
+			existing.GoogleID = googleID
+			if _, ok := updates["first_name"]; ok {
+				existing.FirstName, existing.LastName = firstName, lastName
+			}
 		}
 		return dbUserToUser(existing), nil
 	}
@@ -83,6 +98,23 @@ func (s *Store) findOrCreateUserByGoogle(googleID, email, firstName, lastName st
 		ID: newID("u"), FirstName: firstName, LastName: lastName,
 		Email: email, GoogleID: googleID,
 	}
+	if err := s.db.Create(&u).Error; err != nil {
+		return User{}, err
+	}
+	return dbUserToUser(u), nil
+}
+
+// findOrCreateUserByEmail is used when inviting a judge by email who hasn't
+// signed in yet: it creates a placeholder user (no name) so the invite is
+// already waiting for them — findOrCreateUserByGoogle matches this same row
+// by email on their first real login (Google or demo) instead of creating a
+// duplicate.
+func (s *Store) findOrCreateUserByEmail(email string) (User, error) {
+	var existing DBUser
+	if s.db.Where("LOWER(email) = LOWER(?)", email).First(&existing).Error == nil {
+		return dbUserToUser(existing), nil
+	}
+	u := DBUser{ID: newID("u"), Email: email}
 	if err := s.db.Create(&u).Error; err != nil {
 		return User{}, err
 	}
@@ -99,6 +131,22 @@ func (s *Store) searchUsers(q string) []User {
 		"LOWER(first_name || ' ' || last_name) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?)",
 		like, like,
 	).Find(&rows)
+	result := make([]User, len(rows))
+	for i, u := range rows {
+		result[i] = dbUserToUser(u)
+	}
+	return result
+}
+
+// usersByIDs resolves a batch of user ids at once — used to look up the
+// name/email of every judge referenced by a contest's assignments,
+// including ones invited by email who haven't signed in yet.
+func (s *Store) usersByIDs(ids []string) []User {
+	if len(ids) == 0 {
+		return []User{}
+	}
+	var rows []DBUser
+	s.db.Where("id IN ?", ids).Find(&rows)
 	result := make([]User, len(rows))
 	for i, u := range rows {
 		result[i] = dbUserToUser(u)

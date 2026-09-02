@@ -21,6 +21,7 @@ export interface ScoringApi {
   currentUser(): Promise<User | null>
   logout(): Promise<void>
   searchUsers(query: string): Promise<User[]>
+  getUsers(ids: string[]): Promise<User[]>
 
   // Contests
   listContests(userId: string): Promise<Contest[]>
@@ -31,11 +32,15 @@ export interface ScoringApi {
 
   // Judges
   listJudgeAssignments(contestId: string): Promise<JudgeAssignment[]>
+  // `identity` is either an existing user's id, or an email to invite by —
+  // if no user exists with that email yet, one is created with no name set
+  // (an "unclaimed" placeholder), so the invite is already waiting for them
+  // the first time they actually log in with that email/Google account.
   inviteJudge(
     contestId: string,
     divisionId: string,
     stage: ScoringStage,
-    userId: string,
+    identity: { userId: string } | { email: string },
     role: JudgeRole,
     slot: number,
   ): Promise<JudgeAssignment>

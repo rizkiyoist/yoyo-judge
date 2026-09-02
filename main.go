@@ -11,6 +11,7 @@ import (
 )
 
 func main() {
+	loadEnvJSON()
 	db := server.OpenDB()
 	server.SeedIfEmpty(db)
 	store := server.NewStore(db)

@@ -111,6 +111,10 @@ func (s *Store) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Store) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
+	if idsParam := strings.TrimSpace(r.URL.Query().Get("ids")); idsParam != "" {
+		writeJSON(w, http.StatusOK, nonNil(s.usersByIDs(strings.Split(idsParam, ","))))
+		return
+	}
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	writeJSON(w, http.StatusOK, nonNil(s.searchUsers(q)))
 }
@@ -193,6 +197,7 @@ func (s *Store) handleInviteJudge(w http.ResponseWriter, r *http.Request) {
 		DivisionID string            `json:"divisionId"`
 		Stage      calc.ScoringStage `json:"stage"`
 		UserID     string            `json:"userId"`
+		Email      string            `json:"email"`
 		Role       JudgeRole         `json:"role"`
 		Slot       int               `json:"slot"`
 	}
@@ -200,7 +205,21 @@ func (s *Store) handleInviteJudge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	writeJSON(w, http.StatusCreated, s.inviteJudge(contestID, body.DivisionID, body.Stage, body.UserID, body.Role, body.Slot))
+	userID := body.UserID
+	if userID == "" {
+		email := strings.TrimSpace(body.Email)
+		if email == "" {
+			writeError(w, http.StatusBadRequest, "userId or email is required")
+			return
+		}
+		user, err := s.findOrCreateUserByEmail(email)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create user: "+err.Error())
+			return
+		}
+		userID = user.ID
+	}
+	writeJSON(w, http.StatusCreated, s.inviteJudge(contestID, body.DivisionID, body.Stage, userID, body.Role, body.Slot))
 }
 
 func (s *Store) handleRemoveJudgeAssignment(w http.ResponseWriter, r *http.Request) {
