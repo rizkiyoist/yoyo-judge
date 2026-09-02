@@ -254,11 +254,11 @@ async function createContest() {
         >
           {{ lockToggling[contest.id] ? 'Working…' : contest.locked ? 'Unlock' : 'Lock' }}
         </button>
-        <RouterLink :to="{ name: 'contest-judges', params: { contestId: contest.id } }">
-          <button>Judges</button>
-        </RouterLink>
         <RouterLink :to="{ name: 'contest-edit', params: { contestId: contest.id } }">
           <button>Divisions</button>
+        </RouterLink>
+        <RouterLink :to="{ name: 'contest-judges', params: { contestId: contest.id } }">
+          <button>Judges</button>
         </RouterLink>
         <button :disabled="downloading[contest.id]" @click="downloadContestResults(contest)">
           {{ downloading[contest.id] ? 'Preparing…' : 'Download Results' }}
