@@ -418,8 +418,13 @@ func (s *Store) inviteJudge(contestID, divisionID string, stage calc.ScoringStag
 	return dbAssignmentToAssignment(a)
 }
 
-func (s *Store) removeJudgeAssignment(assignmentID string) {
-	s.db.Delete(&DBJudgeAssignment{}, "id = ?", assignmentID)
+// removeJudgeAssignment deletes an assignment, scoped to contestID so a
+// contest owner can't delete another contest's assignment by pairing their
+// own (owned) contestId in the URL with someone else's assignmentId.
+// Reports whether a row was actually deleted.
+func (s *Store) removeJudgeAssignment(contestID, assignmentID string) bool {
+	res := s.db.Where("id = ? AND contest_id = ?", assignmentID, contestID).Delete(&DBJudgeAssignment{})
+	return res.RowsAffected > 0
 }
 
 // --- players ---

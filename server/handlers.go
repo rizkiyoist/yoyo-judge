@@ -224,6 +224,10 @@ func (s *Store) handleListJudgeAssignments(w http.ResponseWriter, r *http.Reques
 
 func (s *Store) handleInviteJudge(w http.ResponseWriter, r *http.Request) {
 	contestID := mux.Vars(r)["contestId"]
+	if !s.isContestOwner(contestID, currentUser(r).ID) {
+		writeError(w, http.StatusForbidden, "only the head judge who created this contest can invite judges")
+		return
+	}
 	var body struct {
 		DivisionID string            `json:"divisionId"`
 		Stage      calc.ScoringStage `json:"stage"`
@@ -254,7 +258,15 @@ func (s *Store) handleInviteJudge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Store) handleRemoveJudgeAssignment(w http.ResponseWriter, r *http.Request) {
-	s.removeJudgeAssignment(mux.Vars(r)["assignmentId"])
+	contestID := mux.Vars(r)["contestId"]
+	if !s.isContestOwner(contestID, currentUser(r).ID) {
+		writeError(w, http.StatusForbidden, "only the head judge who created this contest can remove judges")
+		return
+	}
+	if !s.removeJudgeAssignment(contestID, mux.Vars(r)["assignmentId"]) {
+		writeError(w, http.StatusNotFound, "judge assignment not found")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

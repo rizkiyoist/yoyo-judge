@@ -1,7 +1,8 @@
 # Progress Summary
 
 _Last updated: 2026-09-02 (contest visibility opened to all judges; real
-server-side score-write authorization; head-judge stage locking)_
+server-side score-write authorization; head-judge stage locking; owner-only
+invite/remove judge, including a cross-contest deletion fix)_
 
 ## Resuming on a new machine
 
@@ -765,17 +766,46 @@ a stage's scores.
   lock got `403`; after the owner unlocked it, the judge could submit
   again; a clicker judge (not the exact slot being tested) successfully
   submitted deductions, confirming the "any clicker judge" rule.
-- **Known remaining gap, not addressed here** (flagged, not fixed — out of
-  scope for this change): `handleAddDivision`, `handleUpdateDivisionStages`,
-  `handleInviteJudge`, and `handleRemoveJudgeAssignment` still have no
-  server-side owner check at all, same as before — only client-side
-  `isOwner` gating. Worth closing given contests are now visible
-  repo-wide, but wasn't part of what was asked for this round.
+- **Known remaining gap at the time, since partly closed** (see next
+  section): `handleAddDivision`, `handleUpdateDivisionStages`,
+  `handleInviteJudge`, and `handleRemoveJudgeAssignment` had no server-side
+  owner check at all, same as before — only client-side `isOwner` gating.
+
+### Owner-only invite/remove judge, plus a cross-contest deletion fix — new, 2026-09-02
+
+Closed the invite/remove half of the gap flagged just above (division
+management — `handleAddDivision`/`handleUpdateDivisionStages` — is still
+open, see "What's not implemented yet").
+
+- `handleInviteJudge` and `handleRemoveJudgeAssignment`
+  (`server/handlers.go`) now call `isContestOwner(contestID,
+  currentUser(r).ID)` and reject with `403` for anyone but the contest's
+  owner — same "head judge" concept used everywhere else in this app
+  (there's no separate head-judge role distinct from the contest owner).
+- **Real bug found and fixed while adding the remove-judge check, not just
+  a missing-auth gap**: `DELETE /contests/{contestId}/judges/{assignmentId}`
+  only ever validated that the caller owned *the contest ID named in the
+  URL* — it never checked that the assignment being deleted actually
+  belonged to that contest. Since a URL's `contestId` is attacker-supplied,
+  the owner of *any* contest could have deleted a judge assignment from
+  *any other* contest by pairing their own (owned, so it passes the check)
+  contest ID with a stolen assignment ID from elsewhere. Fixed by scoping
+  the delete itself to `WHERE id = ? AND contest_id = ?`
+  (`removeJudgeAssignment` in `store.go` now takes both and reports
+  whether a row actually matched, `404` if not) rather than trusting the
+  two URL segments to agree.
+- Verified end-to-end against the compiled binary with two contests owned
+  by two different users: the non-owner's invite attempt on the other's
+  contest got `403`; the real owner's invite succeeded (`201`); the
+  cross-contest deletion attack (own contest ID + the other contest's real
+  assignment ID) got `404` and the assignment was confirmed still present
+  afterward; the real owner's own deletion, same assignment, correct
+  contest ID, succeeded (`204`).
 
 ## What's not implemented yet
 
-- No server-side owner check on `handleAddDivision`, `handleUpdateDivisionStages`,
-  `handleInviteJudge`, or `handleRemoveJudgeAssignment` — only client-side
+- No server-side owner check on `handleAddDivision` or
+  `handleUpdateDivisionStages` — only client-side
   `isOwner` gating in the Vue views. Contest visibility is now repo-wide
   (see "Contest visibility..." above), which makes this more worth closing
   than it used to be.
