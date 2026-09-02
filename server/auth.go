@@ -16,18 +16,15 @@ type contextKey string
 
 const userContextKey contextKey = "user"
 
-// bearerUser resolves the Authorization: Bearer <userId> header to a User.
-// There's no real password/session story yet (matching the frontend mock's
-// security level) — the token is just the user's id.
+// bearerUser resolves the Authorization: Bearer <token> header to a User via
+// the sessions table. Returns false when the token is missing or expired.
 func (s *Store) bearerUser(r *http.Request) (User, bool) {
 	header := r.Header.Get("Authorization")
 	token, ok := strings.CutPrefix(header, "Bearer ")
 	if !ok || token == "" {
 		return User{}, false
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.findUserByID(token)
+	return s.sessionUser(token)
 }
 
 // requireAuth rejects the request with 401 unless a valid bearer token is

@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-
 	"yoyo-judge/library/calc"
 )
 
@@ -32,9 +31,8 @@ func readJSON(r *http.Request, dst any) bool {
 	return json.NewDecoder(r.Body).Decode(dst) == nil
 }
 
-// nonNil turns a nil slice into an empty one before it's JSON-encoded — Go
-// marshals a nil slice as `null`, which crashes frontend code expecting an
-// array (e.g. `.filter`/`.length` on the response).
+// nonNil turns a nil slice into an empty one before JSON encoding — Go
+// marshals nil slices as `null`, which breaks frontend code expecting an array.
 func nonNil[T any](s []T) []T {
 	if s == nil {
 		return []T{}
@@ -42,20 +40,17 @@ func nonNil[T any](s []T) []T {
 	return s
 }
 
-// Mount registers every ScoringApi HTTP route (frontend/src/api/client.ts)
-// under {basePath}/api on the given router. basePath is "" for same-origin
-// deploys (the embedded single-binary mode) or a path like "/yoyojudge" when
-// the frontend is hosted separately (e.g. copied into an existing nginx
-// docroot the app doesn't control the config of) and calls this backend
-// directly, cross-origin, at a matching prefix.
+// Mount registers every ScoringApi HTTP route under {basePath}/api.
 func Mount(router *mux.Router, store *Store, basePath string) {
 	api := router.PathPrefix(basePath + "/api").Subrouter()
 
+	// Auth — Google OAuth endpoints are GET (browser redirect flow).
 	api.HandleFunc("/auth/login", store.handleLogin).Methods(http.MethodPost)
 	api.HandleFunc("/auth/me", store.handleMe).Methods(http.MethodGet)
 	api.HandleFunc("/auth/logout", store.handleLogout).Methods(http.MethodPost)
-	// Public (no auth): the login screen lists seeded users to pick from
-	// before a session exists, mirroring mock.ts's searchUsers.
+	api.HandleFunc("/auth/google", store.handleGoogleLogin).Methods(http.MethodGet)
+	api.HandleFunc("/auth/google/callback", store.handleGoogleCallback).Methods(http.MethodGet)
+	// Public: login screen calls this before a session exists to list demo users.
 	api.HandleFunc("/users/search", store.handleSearchUsers).Methods(http.MethodGet)
 
 	api.HandleFunc("/contests", store.requireAuth(store.handleListContests)).Methods(http.MethodGet)
@@ -89,14 +84,13 @@ func (s *Store) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
 	user, ok := s.findUserByEmail(body.Email)
-	s.mu.Unlock()
 	if !ok {
 		writeJSON(w, http.StatusOK, map[string]any{"user": nil})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": user, "token": user.ID})
+	token := s.createSession(user.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"user": user, "token": token})
 }
 
 func (s *Store) handleMe(w http.ResponseWriter, r *http.Request) {
@@ -109,58 +103,25 @@ func (s *Store) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Store) handleLogout(w http.ResponseWriter, r *http.Request) {
+	header := r.Header.Get("Authorization")
+	if token, ok := strings.CutPrefix(header, "Bearer "); ok && token != "" {
+		s.deleteSession(token)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Store) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
-	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var matches []User
-	if q != "" {
-		for _, u := range s.users {
-			name := strings.ToLower(u.FirstName + " " + u.LastName)
-			email := strings.ToLower(u.Email)
-			if strings.Contains(name, q) || strings.Contains(email, q) {
-				matches = append(matches, u)
-			}
-		}
-	}
-	writeJSON(w, http.StatusOK, nonNil(matches))
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	writeJSON(w, http.StatusOK, nonNil(s.searchUsers(q)))
 }
 
 // --- contests ---
 
 func (s *Store) handleListContests(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var owned, invited []Contest
-	for _, c := range s.contests {
-		if c.OwnerUserID == user.ID {
-			owned = append(owned, c.toContest())
-			continue
-		}
-		for _, d := range c.Divisions {
-			found := false
-			for _, a := range d.Assignments {
-				if a.UserID == user.ID {
-					found = true
-					break
-				}
-			}
-			if found {
-				invited = append(invited, c.toContest())
-				break
-			}
-		}
-	}
-	writeJSON(w, http.StatusOK, nonNil(append(owned, invited...)))
+	writeJSON(w, http.StatusOK, nonNil(s.listContestsForUser(currentUser(r).ID)))
 }
 
 func (s *Store) handleCreateContest(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
 	var body struct {
 		Name string `json:"name"`
 		Year int    `json:"year"`
@@ -169,23 +130,16 @@ func (s *Store) handleCreateContest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	contest := &contestRecord{ID: newID("c"), Name: body.Name, Year: body.Year, OwnerUserID: user.ID}
-	s.contests = append(s.contests, contest)
-	s.mu.Unlock()
-	writeJSON(w, http.StatusCreated, contest.toContest())
+	writeJSON(w, http.StatusCreated, s.createContest(body.Name, body.Year, currentUser(r).ID))
 }
 
 func (s *Store) handleGetContest(w http.ResponseWriter, r *http.Request) {
-	contestID := mux.Vars(r)["contestId"]
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.findContest(contestID)
+	c, ok := s.getContest(mux.Vars(r)["contestId"])
 	if !ok {
 		writeError(w, http.StatusNotFound, "contest not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, c.toContest())
+	writeJSON(w, http.StatusOK, c)
 }
 
 func (s *Store) handleAddDivision(w http.ResponseWriter, r *http.Request) {
@@ -198,19 +152,11 @@ func (s *Store) handleAddDivision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.findContest(contestID)
-	if !ok {
+	if _, ok := s.getContest(contestID); !ok {
 		writeError(w, http.StatusNotFound, "contest not found")
 		return
 	}
-	division := &divisionRecord{
-		Division: Division{ID: newID("d"), ContestID: contestID, Name: body.Name, Stages: body.Stages},
-		Scores:   map[calc.ScoringStage][]PlayerRawScores{},
-	}
-	c.Divisions = append(c.Divisions, division)
-	writeJSON(w, http.StatusCreated, division.Division)
+	writeJSON(w, http.StatusCreated, s.addDivision(contestID, body.Name, body.Stages))
 }
 
 func (s *Store) handleUpdateDivisionStages(w http.ResponseWriter, r *http.Request) {
@@ -222,33 +168,23 @@ func (s *Store) handleUpdateDivisionStages(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(vars["divisionId"])
-	if !ok || d.ContestID != vars["contestId"] {
+	division, ok := s.updateDivisionStages(vars["contestId"], vars["divisionId"], body.Stages)
+	if !ok {
 		writeError(w, http.StatusNotFound, "division not found")
 		return
 	}
-	d.Stages = body.Stages
-	writeJSON(w, http.StatusOK, d.Division)
+	writeJSON(w, http.StatusOK, division)
 }
 
 // --- judges ---
 
 func (s *Store) handleListJudgeAssignments(w http.ResponseWriter, r *http.Request) {
 	contestID := mux.Vars(r)["contestId"]
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.findContest(contestID)
-	if !ok {
+	if _, ok := s.getContest(contestID); !ok {
 		writeError(w, http.StatusNotFound, "contest not found")
 		return
 	}
-	var assignments []JudgeAssignment
-	for _, d := range c.Divisions {
-		assignments = append(assignments, d.Assignments...)
-	}
-	writeJSON(w, http.StatusOK, nonNil(assignments))
+	writeJSON(w, http.StatusOK, nonNil(s.listJudgeAssignments(contestID)))
 }
 
 func (s *Store) handleInviteJudge(w http.ResponseWriter, r *http.Request) {
@@ -264,57 +200,18 @@ func (s *Store) handleInviteJudge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(body.DivisionID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "division not found")
-		return
-	}
-	filtered := d.Assignments[:0]
-	for _, a := range d.Assignments {
-		if !(a.Stage == body.Stage && a.Role == body.Role && a.Slot == body.Slot) {
-			filtered = append(filtered, a)
-		}
-	}
-	assignment := JudgeAssignment{
-		ID: newID("a"), ContestID: contestID, DivisionID: body.DivisionID,
-		Stage: body.Stage, UserID: body.UserID, Role: body.Role, Slot: body.Slot,
-	}
-	d.Assignments = append(filtered, assignment)
-	writeJSON(w, http.StatusCreated, assignment)
+	writeJSON(w, http.StatusCreated, s.inviteJudge(contestID, body.DivisionID, body.Stage, body.UserID, body.Role, body.Slot))
 }
 
 func (s *Store) handleRemoveJudgeAssignment(w http.ResponseWriter, r *http.Request) {
-	assignmentID := mux.Vars(r)["assignmentId"]
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, c := range s.contests {
-		for _, d := range c.Divisions {
-			filtered := d.Assignments[:0]
-			for _, a := range d.Assignments {
-				if a.ID != assignmentID {
-					filtered = append(filtered, a)
-				}
-			}
-			d.Assignments = filtered
-		}
-	}
+	s.removeJudgeAssignment(mux.Vars(r)["assignmentId"])
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- players ---
 
 func (s *Store) handleListPlayers(w http.ResponseWriter, r *http.Request) {
-	divisionID := mux.Vars(r)["divisionId"]
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(divisionID)
-	if !ok {
-		writeJSON(w, http.StatusOK, []Player{})
-		return
-	}
-	writeJSON(w, http.StatusOK, nonNil(d.Players))
+	writeJSON(w, http.StatusOK, nonNil(s.listPlayers(mux.Vars(r)["divisionId"])))
 }
 
 func (s *Store) handleAddPlayer(w http.ResponseWriter, r *http.Request) {
@@ -327,16 +224,7 @@ func (s *Store) handleAddPlayer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(divisionID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "division not found")
-		return
-	}
-	player := Player{ID: newID("p"), DivisionID: divisionID, Number: body.Number, Name: body.Name}
-	d.Players = append(d.Players, player)
-	writeJSON(w, http.StatusCreated, player)
+	writeJSON(w, http.StatusCreated, s.addPlayer(divisionID, body.Number, body.Name))
 }
 
 // --- scoring ---
@@ -344,18 +232,7 @@ func (s *Store) handleAddPlayer(w http.ResponseWriter, r *http.Request) {
 func (s *Store) handleGetRawScores(w http.ResponseWriter, r *http.Request) {
 	divisionID := mux.Vars(r)["divisionId"]
 	stage := calc.ScoringStage(r.URL.Query().Get("stage"))
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(divisionID)
-	if !ok {
-		writeJSON(w, http.StatusOK, []PlayerRawScores{})
-		return
-	}
-	scores := make([]PlayerRawScores, 0, len(d.Players))
-	for _, p := range d.Players {
-		scores = append(scores, *d.rawScoresFor(stage, p.ID))
-	}
-	writeJSON(w, http.StatusOK, scores)
+	writeJSON(w, http.StatusOK, s.getRawScoresForDivision(divisionID, stage))
 }
 
 func (s *Store) handleSubmitClickerScore(w http.ResponseWriter, r *http.Request) {
@@ -370,15 +247,7 @@ func (s *Store) handleSubmitClickerScore(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(divisionID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "division not found")
-		return
-	}
-	raw := d.rawScoresFor(body.Stage, body.PlayerID)
-	raw.Clickers[body.Slot] = body.Score
+	s.upsertClickerScore(divisionID, body.Stage, body.PlayerID, body.Slot, body.Score)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -393,39 +262,23 @@ func (s *Store) handleSubmitDeductions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(divisionID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "division not found")
-		return
-	}
-	raw := d.rawScoresFor(body.Stage, body.PlayerID)
-	raw.Deductions = body.Deductions
+	s.upsertDeductions(divisionID, body.Stage, body.PlayerID, body.Deductions)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Store) handleSubmitEvalScore(w http.ResponseWriter, r *http.Request) {
 	divisionID := mux.Vars(r)["divisionId"]
 	var body struct {
-		Stage    calc.ScoringStage `json:"stage"`
-		PlayerID string            `json:"playerId"`
-		Slot     int               `json:"slot"`
+		Stage    calc.ScoringStage  `json:"stage"`
+		PlayerID string             `json:"playerId"`
+		Slot     int                `json:"slot"`
 		Scores   map[string]float64 `json:"scores"`
 	}
 	if !readJSON(r, &body) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(divisionID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "division not found")
-		return
-	}
-	raw := d.rawScoresFor(body.Stage, body.PlayerID)
-	raw.Evals[body.Slot] = body.Scores
+	s.upsertEvalScore(divisionID, body.Stage, body.PlayerID, body.Slot, body.Scores)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -434,24 +287,5 @@ func (s *Store) handleSubmitEvalScore(w http.ResponseWriter, r *http.Request) {
 func (s *Store) handleGetResults(w http.ResponseWriter, r *http.Request) {
 	divisionID := mux.Vars(r)["divisionId"]
 	stage := calc.ScoringStage(r.URL.Query().Get("stage"))
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, d, ok := s.findDivision(divisionID)
-	if !ok {
-		writeJSON(w, http.StatusOK, []PlayerResultResponse{})
-		return
-	}
-
-	inputs := make([]calc.PlayerInput, len(d.Players))
-	for i, p := range d.Players {
-		inputs[i] = toPlayerInput(d, stage, p)
-	}
-	contest := calc.NewContest(stage, inputs)
-	results := contest.Calculate()
-
-	responses := make([]PlayerResultResponse, len(results))
-	for i, res := range results {
-		responses[i] = toPlayerResultResponse(d.Players[i].ID, res)
-	}
-	writeJSON(w, http.StatusOK, responses)
+	writeJSON(w, http.StatusOK, nonNil(s.calculateResults(divisionID, stage)))
 }

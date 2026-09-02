@@ -24,5 +24,12 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, initialized, init, login, logout }
+  // Called by AuthCallbackView after storing an OAuth token so the next
+  // router navigation re-fetches the current user.
+  function invalidate() {
+    initialized.value = false
+    user.value = null
+  }
+
+  return { user, initialized, init, login, logout, invalidate }
 })

@@ -11,9 +11,9 @@ import (
 )
 
 func main() {
-	// NOTE: no MySQL/GORM connection yet — the ScoringApi backend (server/)
-	// is in-memory for now. See docs/PROGRESS.md for why and what's next.
-	store := server.NewStore()
+	db := server.OpenDB()
+	server.SeedIfEmpty(db)
+	store := server.NewStore(db)
 	br := BuildRouterRequest{Store: store}
 	BuildRouter(&br)
 }

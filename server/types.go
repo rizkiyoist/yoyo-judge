@@ -5,8 +5,8 @@
  */
 
 // Package server is the HTTP API for the yoyo-judge frontend's ScoringApi
-// contract (frontend/src/api/client.ts). It's backed by an in-memory store
-// (store.go) rather than MySQL/GORM for now — see docs/PROGRESS.md for why.
+// contract (frontend/src/api/client.ts). Backed by SQLite via GORM (store.go);
+// Google OAuth is handled in oauth.go.
 package server
 
 import "yoyo-judge/library/calc"

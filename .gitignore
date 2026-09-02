@@ -3,6 +3,9 @@
 /yoyo-judge*
 dbconfig.yml
 env.json
+*.db
+*.db-shm
+*.db-wal
 /tmp
 /bin
 /dist
