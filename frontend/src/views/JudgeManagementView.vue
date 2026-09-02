@@ -229,7 +229,19 @@ async function assignMd() {
 <template>
   <div v-if="contest">
     <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
-    <h1>{{ contest.name }} - Judges</h1>
+    <div class="row" style="justify-content: space-between; align-items: center">
+      <h1 style="margin: 0">{{ contest.name }} - Judges</h1>
+      <div v-if="hasDivisions" class="row" style="gap: 4px">
+        <button
+          v-for="d in contest.divisions"
+          :key="d.id"
+          :class="{ primary: selectedDivisionId === d.id }"
+          @click="selectedDivisionId = d.id"
+        >
+          {{ d.name }}
+        </button>
+      </div>
+    </div>
     <p v-if="!canManage" class="muted">Only the contest owner or head judge can manage judges.</p>
     <p v-if="contest.locked" class="error">
       🔒 This contest is locked. {{ isCurrentHeadJudge ? 'Unlock it below to make changes.' : 'Only the head judge can unlock it.' }}
@@ -245,13 +257,10 @@ async function assignMd() {
     <div v-if="canManage" class="card" :style="!hasDivisions ? 'opacity: 0.5; pointer-events: none' : ''">
       <h2>Invite a judge</h2>
       <fieldset :disabled="contest.locked || !hasDivisions" style="border: 0; padding: 0; margin: 0">
+      <p class="muted" style="margin-top: -6px">
+        Inviting into <strong>{{ selectedDivision?.name }}</strong> - pick a different division from the buttons above to change this.
+      </p>
       <div class="row">
-        <div class="field">
-          <label>Division</label>
-          <select v-model="selectedDivisionId">
-            <option v-for="d in contest.divisions" :key="d.id" :value="d.id">{{ d.name }}</option>
-          </select>
-        </div>
         <div class="field">
           <label>Role</label>
           <select v-model="selectedRole">
@@ -296,7 +305,6 @@ async function assignMd() {
 
     <div v-if="hasDivisions" class="card">
       <h2 style="margin-bottom: 10px">Current assignments</h2>
-      <p class="muted" style="margin-top: -4px; margin-bottom: 12px">Division: <strong>{{ selectedDivision?.name }}</strong></p>
       <div class="row" style="gap: 4px; margin-bottom: 14px">
         <button
           v-for="s in selectedDivision?.stages ?? []"
