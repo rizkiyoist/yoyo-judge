@@ -30,7 +30,12 @@ type DBContest struct {
 	// Locked freezes the *entire* contest (all divisions/stages/scores/
 	// players/judges) against any write, including by the head judge
 	// themselves — only unlocking (head-judge-only) is exempt.
-	Locked    bool `gorm:"not null;default:false"`
+	Locked bool `gorm:"not null;default:false"`
+	// Hidden excludes a contest from listAllContests() without deleting
+	// it — used for SeedIfEmpty's demo contest so it doesn't clutter the
+	// (now globally visible) contest list, while keeping the row around
+	// for reference. A hidden contest is still reachable directly by ID.
+	Hidden    bool `gorm:"not null;default:false"`
 	CreatedAt time.Time
 }
 

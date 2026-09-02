@@ -3,7 +3,8 @@
 _Last updated: 2026-09-02 (owner vs. transferable head judge; whole-contest
 lock replaces the earlier per-stage lock; division/player deletion;
 eval-score scale fixed to real 0-10, verified against the source xlsx;
-removed the dead pre-SQLite MySQL/GORM code entirely)_
+removed the dead pre-SQLite MySQL/GORM code entirely; demo/seed data hidden
+without deleting it, auto-seeding disabled)_
 
 ## Resuming on a new machine
 
@@ -992,6 +993,52 @@ touch it, sort of — but only a UI/metadata bug, not the arithmetic:
   unlocked; division deletion was blocked (`409`) with a player present and
   succeeded (`204`) after removing them; transferring head-judge status to
   an uninvited stranger was rejected (`400`).
+
+### Demo/seed data hidden (not deleted); auto-seeding disabled — new, 2026-09-02
+
+Requested directly: "hide the example data and judge list, I no longer
+need it but don't delete it for now, keep the files for later use maybe."
+Two concrete things were actually showing seed data by this point: the
+demo contest ("Indonesia National Yoyo Championships") in the now-globally-
+visible contest list, and `LoginView.vue`'s "Seeded demo users" quick-pick
+list of judge names. Both hidden, nothing deleted, seed code untouched.
+
+- `DBContest` gained `Hidden bool` (`server/db_models.go`, auto-migrated,
+  default `false`). `listAllContests()` in `store.go` now filters `WHERE
+  hidden = false` — a hidden contest is simply excluded from the list, not
+  blocked; it's still reachable directly by ID (`getContest` doesn't
+  filter on it) for whoever already has the link.
+- `server/db.go`'s `SeedIfEmpty` now sets `Hidden: true` on the demo
+  contest it creates (also filled in the previously-missing
+  `HeadJudgeUserID` while touching this — harmless either way since
+  `dbContestToContest` already falls back to the owner, but explicit is
+  clearer). The function itself is untouched otherwise, still available if
+  demo data is ever wanted again.
+- `main.go` no longer calls `server.SeedIfEmpty(db)` — commented out with
+  an explanatory note, not deleted, so a **fresh** database from here on
+  starts genuinely empty rather than auto-populated with dummy data. This
+  only affects new/empty databases; it does nothing to a database that was
+  already seeded (see next bullet for how the existing one was handled).
+- **One-time live-data fix, not a code change**: the actual `yoyojudge.db`
+  already sitting in the repo root (this machine's local dev database) had
+  the demo contest seeded into it from earlier sessions, sitting alongside
+  a real contest ("Kon Test") the user had already created. Confirmed via
+  a direct read-only query before touching anything, then ran the rebuilt
+  binary once against that real file (briefly, on a throwaway port) purely
+  to let `AutoMigrate` add the new `hidden` column, stopped it, and ran a
+  single `UPDATE db_contests SET hidden = 1 WHERE name = 'Indonesia
+  National Yoyo Championships'` directly against that file — 1 row
+  affected, "Kon Test" untouched. Re-verified by starting the server again
+  and hitting `GET /contests`: only "Kon Test" came back.
+- `LoginView.vue`: removed the `seededUsers` fetch (`api.searchUsers
+  ('example.com')`) and the "Seeded demo users" button list entirely — the
+  manual "type an email, log in as that user" form stays (it's a generic
+  no-real-auth mechanism, not itself demo data, and wasn't part of what was
+  asked to be hidden). Unused `onMounted`/`api`/`User` imports cleaned up
+  as a result.
+- Verified: `go build`/`vet`/`test` and the frontend typecheck/`vitest`
+  suite all still pass; the live-db fix was confirmed end-to-end as
+  described above rather than just assumed from the `UPDATE`'s row count.
 
 ## What's not implemented yet
 

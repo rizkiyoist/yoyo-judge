@@ -84,7 +84,11 @@ func SeedIfEmpty(db *gorm.DB) {
 	contestID := newID("c")
 	db.Create(&DBContest{
 		ID: contestID, Name: "Indonesia National Yoyo Championships", Year: 2026,
-		OwnerUserID: headJudge.ID,
+		OwnerUserID: headJudge.ID, HeadJudgeUserID: headJudge.ID,
+		// Hidden: kept out of listAllContests() so it doesn't clutter the
+		// (now globally visible) contest list — still reachable directly
+		// by ID for reference.
+		Hidden: true,
 	})
 
 	stagesJSON, _ := json.Marshal([]calc.ScoringStage{calc.StagePrelim, calc.StageFinal})

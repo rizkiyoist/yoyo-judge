@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
-import type { User } from '../types'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -11,16 +9,11 @@ const route = useRoute()
 
 const email = ref('')
 const error = ref('')
-const seededUsers = ref<User[]>([])
 
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'
 const basePath = (import.meta.env.VITE_BASE_PATH ?? '/yoyojudge').replace(/\/$/, '')
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? `${basePath}/api`
 const googleLoginUrl = `${apiBase}/auth/google`
-
-onMounted(async () => {
-  seededUsers.value = await api.searchUsers('example.com')
-})
 
 async function submit(chosenEmail?: string) {
   error.value = ''
@@ -54,7 +47,7 @@ async function submit(chosenEmail?: string) {
       </summary>
 
       <p class="muted" style="font-size: 0.85em; margin-top: 8px">
-        No real authentication - picks any seeded user by email.
+        No real authentication - picks any existing user by email.
       </p>
 
       <form class="field" @submit.prevent="submit()">
@@ -63,19 +56,12 @@ async function submit(chosenEmail?: string) {
           id="email"
           v-model="email"
           type="email"
-          placeholder="alice@example.com"
+          placeholder="you@example.com"
           autocomplete="email"
         />
         <button class="primary" type="submit" style="margin-top: 8px">Log in</button>
       </form>
       <p v-if="error" class="error">{{ error }}</p>
-
-      <h3 style="margin-top: 24px">Seeded demo users</h3>
-      <div class="row" style="flex-direction: column; align-items: stretch">
-        <button v-for="u in seededUsers" :key="u.id" @click="submit(u.email)">
-          {{ u.firstName }} {{ u.lastName }} <span class="muted">- {{ u.email }}</span>
-        </button>
-      </div>
     </details>
   </div>
 </template>

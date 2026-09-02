@@ -193,7 +193,7 @@ func (s *Store) deleteSession(token string) {
 // separately, see isContestOwner/isAssignedSlot/isAssignedRole below).
 func (s *Store) listAllContests() []Contest {
 	var all []DBContest
-	s.db.Order("created_at").Find(&all)
+	s.db.Where("hidden = ?", false).Order("created_at").Find(&all)
 	result := make([]Contest, len(all))
 	for i, c := range all {
 		result[i] = s.dbContestToContest(c)
