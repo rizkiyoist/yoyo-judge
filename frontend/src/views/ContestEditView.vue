@@ -101,7 +101,7 @@ async function deleteDivision(divisionId: string) {
       <h2>Add a division</h2>
       <div class="field">
         <label>Division name</label>
-        <input v-model="divisionName" type="text" placeholder="e.g. 3A" />
+        <input v-model="divisionName" type="text" placeholder="1A" />
       </div>
       <div class="row">
         <label><input v-model="wantsPrelim" type="checkbox" /> Prelim</label>

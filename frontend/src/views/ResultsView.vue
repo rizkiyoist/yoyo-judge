@@ -100,24 +100,24 @@ function toggle(playerId: string) {
             <th rowspan="2">#</th>
             <th rowspan="2">Player</th>
             <th class="col-tex" rowspan="2">T.Ex</th>
-            <th v-if="tevCategories.length" class="col-tex" :colspan="tevCategories.length">T.Ev</th>
+            <th v-if="tevCategories.length" class="col-tev" :colspan="tevCategories.length">T.Ev</th>
             <th v-if="pevCategories.length" class="col-pev" :colspan="pevCategories.length">P.Ev</th>
             <th rowspan="2">Categories Total</th>
-            <th rowspan="2">E.Total</th>
-            <th colspan="3">M. Deduction</th>
-            <th rowspan="2">Final Score</th>
+            <th class="col-total" rowspan="2">E.Total</th>
+            <th class="col-deduction" colspan="3">M. Deduction</th>
+            <th class="col-total" rowspan="2">Final Score</th>
             <th rowspan="2"></th>
           </tr>
           <tr>
-            <th v-for="cat in tevCategories" :key="cat.name" class="col-tex">
+            <th v-for="cat in tevCategories" :key="cat.name" class="col-tev">
               {{ categoryLabels[cat.name] ?? cat.name }}
             </th>
             <th v-for="cat in pevCategories" :key="cat.name" class="col-pev">
               {{ categoryLabels[cat.name] ?? cat.name }}
             </th>
-            <th>Stop</th>
-            <th>Discard</th>
-            <th>{{ thirdDeductionLabel }}</th>
+            <th class="col-deduction">Stop</th>
+            <th class="col-deduction">Discard</th>
+            <th class="col-deduction">{{ thirdDeductionLabel }}</th>
           </tr>
         </thead>
         <tbody>

@@ -5,7 +5,8 @@ lock replaces the earlier per-stage lock; division/player deletion;
 eval-score scale fixed to real 0-10, verified against the source xlsx;
 removed the dead pre-SQLite MySQL/GORM code entirely; demo/seed data hidden
 without deleting it, auto-seeding disabled; dedicated major-deduction judge
-role restricts who can enter deductions; per-field Saved/Saving status)_
+role restricts who can enter deductions; per-field Saved/Saving status;
+results table header colors match the real FINAL-SCORE sheet per group)_
 
 ## Resuming on a new machine
 
@@ -1124,9 +1125,57 @@ per field:
   requiring two separate invites.
 - `ContestListView.vue` — Lock/Unlock button moved to the rightmost
   position in each contest's action row (was first).
+- Judges page: division picker moved out of "Invite a judge" into a
+  page-level row of buttons next to the "{name} - Judges" heading (it
+  drives everything below — invite form, current assignments, MD section
+  — so treating it as page-level rather than one form field among others);
+  the now-redundant "Division: X" label inside "Current assignments" was
+  removed since the buttons already show it.
+
+### Results table header colors match the real FINAL-SCORE sheet — new, 2026-09-02
+
+Two rounds: first restructured the header into two tiers (group row +
+column row) matching the real sheet's layout, per direct feedback that the
+color scheme "looked weird" and only tinted two of the groups. Then
+corrected the actual colors against a screenshot of the real Excel sheet's
+header — purple T.Ex, pink T.Ev, blue P.Ev, gold E.Total/Final Score, pink
+M. Deduction (not exact fills, same idea) — since the first pass had
+guessed a different palette (blue T.Ex/T.Ev, amber P.Ev) before this
+reference was available.
+
+- `ResultsView.vue` — two-row `<thead>`: group row (T.Ex/T.Ev/P.Ev/M.
+  Deduction, `colspan`-ed) above a column-name row, plus previously-removed
+  `place-1/2/3` medal coloring on the Place column (flat now, wasn't
+  requested).
+- `style.css` — one CSS variable pair per group (`--tex-color`/
+  `--tex-bg-header`, `--tev-color`/`--tev-bg-header`, `--pev-...`,
+  `--total-...` for E.Total *and* Final Score, `--deduction-...`), each
+  with a light and `[data-theme='dark']` value, applied only to `th.col-*`
+  — body `<td>`s stay flat in both themes, matching the sheet's own
+  convention of coloring just the header row. "Categories Total" (an
+  app-only combined subtotal that doesn't exist as its own column in the
+  real sheet) is deliberately left uncolored rather than inventing a tint
+  for it.
+- `ContestListView.vue`'s downloaded results HTML got the identical
+  two-row header and `col-*` classes, with the same colors hardcoded as
+  fixed light-mode hex/rgba values in its inline `<style>` (no CSS
+  variables or dark-mode block — it's a standalone document, always light,
+  per explicit instruction).
 
 ## What's not implemented yet
 
+- No UI exposes the source workbook's `ADJ-CLICK`/`ADJ-GIVEN` intermediate
+  sheets — per-judge *scaled* values (each clicker judge's net click count
+  as a % of their own best net in the field; each eval category averaged
+  across judges, halved for FINAL) that sit between the raw judge input
+  and the final aggregated score. `library/calc/rules.go`'s `Calculate()`
+  computes these internally (`scaleClicker`, the category-averaging loop)
+  but only returns the final `PlayerResult`, not the intermediate
+  per-judge numbers — nothing in `server/` or the frontend surfaces them.
+  `ResultsView.vue`'s "Details" expansion shows raw per-judge input
+  (mirroring `RAW-TEx`/`RAW-TEvPEv`), not the adjusted values. Would need
+  `PlayerResult`/`PlayerResultResponse` extended with the per-judge scaled
+  breakdown, or a separate endpoint, to show this.
 - `handler/input.go`'s structs (`SetUp`, `Player`, `RawTex`, `RawPev`) aren't
   mapped to `calc.PlayerInput`/`calc.Contest` or connected to `server/` or
   any usecase layer (the `request/`/`controller/auth` packages they used to

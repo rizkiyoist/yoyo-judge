@@ -127,7 +127,7 @@ function divisionResultsTable(division: Division, results: PlayerResult[]): stri
   const tevCategories = categories.filter((c) => c.group === 'TEv')
   const pevCategories = categories.filter((c) => c.group === 'PEv')
   const tevHeaders = tevCategories
-    .map((c) => `<th class="col-tex">${escapeHtml(FINAL_CATEGORY_LABELS[c.name] ?? c.name)}</th>`)
+    .map((c) => `<th class="col-tev">${escapeHtml(FINAL_CATEGORY_LABELS[c.name] ?? c.name)}</th>`)
     .join('')
   const pevHeaders = pevCategories
     .map((c) => `<th class="col-pev">${escapeHtml(FINAL_CATEGORY_LABELS[c.name] ?? c.name)}</th>`)
@@ -160,15 +160,15 @@ function divisionResultsTable(division: Division, results: PlayerResult[]): stri
     <thead>
       <tr>
         <th rowspan="2">Place</th><th rowspan="2">Player</th><th class="col-tex" rowspan="2">T.Ex</th>
-        <th class="col-tex" colspan="${tevCategories.length}">T.Ev</th>
+        <th class="col-tev" colspan="${tevCategories.length}">T.Ev</th>
         <th class="col-pev" colspan="${pevCategories.length}">P.Ev</th>
-        <th rowspan="2">Categories Total</th><th rowspan="2">E.Total</th>
-        <th colspan="3">M. Deduction</th>
-        <th rowspan="2">Final Score</th>
+        <th rowspan="2">Categories Total</th><th class="col-total" rowspan="2">E.Total</th>
+        <th class="col-deduction" colspan="3">M. Deduction</th>
+        <th class="col-total" rowspan="2">Final Score</th>
       </tr>
       <tr>
         ${tevHeaders}${pevHeaders}
-        <th>Stop</th><th>Discard</th><th>Cut</th>
+        <th class="col-deduction">Stop</th><th class="col-deduction">Discard</th><th class="col-deduction">Cut</th>
       </tr>
     </thead>
     <tbody>
@@ -211,8 +211,11 @@ async function downloadContestResults(contest: Contest) {
   table { border-collapse: collapse; width: 100%; margin-top: 8px; }
   th, td { border: 1px solid #e0dee4; padding: 6px 10px; text-align: left; font-size: 13px; }
   th { background: #f6f5f9; }
-  th.col-tex { color: #1d4ed8; background: rgba(29, 78, 216, 0.28); }
-  th.col-pev { color: #b45309; background: rgba(180, 83, 9, 0.28); }
+  th.col-tex { color: #7c3aed; background: rgba(124, 58, 237, 0.22); }
+  th.col-tev { color: #db2777; background: rgba(219, 39, 119, 0.18); }
+  th.col-pev { color: #1d4ed8; background: rgba(29, 78, 216, 0.22); }
+  th.col-total { color: #b45309; background: rgba(180, 83, 9, 0.22); }
+  th.col-deduction { color: #db2777; background: rgba(219, 39, 119, 0.18); }
 </style>
 </head>
 <body>

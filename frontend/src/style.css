@@ -15,11 +15,21 @@
   color-scheme: light;
 }
 
+/* Results table header colors, one per column-group, matching the IYYF
+   FINAL-SCORE sheet's own colored header row (purple T.Ex, pink T.Ev,
+   blue P.Ev, gold E.Total/Final Score, pink M. Deduction) - not exact
+   Excel fill colors, just the same idea. */
 :root {
-  --tex-color: #1d4ed8;
-  --tex-bg-header: rgba(29, 78, 216, 0.28);
-  --pev-color: #b45309;
-  --pev-bg-header: rgba(180, 83, 9, 0.28);
+  --tex-color: #7c3aed;
+  --tex-bg-header: rgba(124, 58, 237, 0.22);
+  --tev-color: #db2777;
+  --tev-bg-header: rgba(219, 39, 119, 0.18);
+  --pev-color: #1d4ed8;
+  --pev-bg-header: rgba(29, 78, 216, 0.22);
+  --total-color: #b45309;
+  --total-bg-header: rgba(180, 83, 9, 0.22);
+  --deduction-color: #db2777;
+  --deduction-bg-header: rgba(219, 39, 119, 0.18);
 }
 
 :root[data-theme='dark'] {
@@ -32,10 +42,16 @@
   --accent-contrast: #1c1b22;
   --danger: #f08a75;
   --success: #4ade80;
-  --tex-color: #93c5fd;
-  --tex-bg-header: rgba(147, 197, 253, 0.32);
-  --pev-color: #fcd34d;
-  --pev-bg-header: rgba(252, 211, 77, 0.32);
+  --tex-color: #c4b5fd;
+  --tex-bg-header: rgba(196, 181, 253, 0.28);
+  --tev-color: #f9a8d4;
+  --tev-bg-header: rgba(249, 168, 212, 0.22);
+  --pev-color: #93c5fd;
+  --pev-bg-header: rgba(147, 197, 253, 0.28);
+  --total-color: #fcd34d;
+  --total-bg-header: rgba(252, 211, 77, 0.28);
+  --deduction-color: #f9a8d4;
+  --deduction-bg-header: rgba(249, 168, 212, 0.22);
   color-scheme: dark;
 }
 
@@ -220,14 +236,28 @@ th {
   font-weight: 700;
 }
 
-/* T.Ex/T.Ev vs P.Ev column groups in the results table - only the header
-   cells carry the distinct tint (matching the IYYF FINAL-SCORE sheet in
-   Excel, where only the header row is colored); body cells stay flat. */
+/* Column-group headers in the results table, one tint per group so every
+   group reads distinctly at a glance - matching the IYYF FINAL-SCORE
+   sheet's own colored header row. Only the header cells carry the tint;
+   body cells stay flat. */
 th.col-tex {
   color: var(--tex-color);
   background: var(--tex-bg-header);
 }
+th.col-tev {
+  color: var(--tev-color);
+  background: var(--tev-bg-header);
+}
 th.col-pev {
   color: var(--pev-color);
   background: var(--pev-bg-header);
+}
+/* E.Total and Final Score share the sheet's gold. */
+th.col-total {
+  color: var(--total-color);
+  background: var(--total-bg-header);
+}
+th.col-deduction {
+  color: var(--deduction-color);
+  background: var(--deduction-bg-header);
 }
