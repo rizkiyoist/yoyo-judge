@@ -6,7 +6,9 @@ eval-score scale fixed to real 0-10, verified against the source xlsx;
 removed the dead pre-SQLite MySQL/GORM code entirely; demo/seed data hidden
 without deleting it, auto-seeding disabled; dedicated major-deduction judge
 role restricts who can enter deductions; per-field Saved/Saving status;
-results table header colors match the real FINAL-SCORE sheet per group)_
+results table header colors match the real FINAL-SCORE sheet per group;
+Google-only login; single frontend build output at bin/static, no more
+duplicate repo-root dist/)_
 
 ## Resuming on a new machine
 
@@ -1161,6 +1163,31 @@ reference was available.
   fixed light-mode hex/rgba values in its inline `<style>` (no CSS
   variables or dark-mode block — it's a standalone document, always light,
   per explicit instruction).
+
+### Google-only login; single frontend build output — new, 2026-09-02
+
+- `LoginView.vue`'s "Demo / email login" section (manual email entry +
+  the collapsed `<details>`) is gone — the page is now just the "Continue
+  with Google" button, unconditionally (the `v-if="!useMock"` guard on it
+  is also gone). **Consequence, not fixed here**: `VITE_USE_MOCK=true`
+  (the offline mock-API dev mode) now has no working login path at all —
+  its Google button points at `/auth/google`, which `mock.ts` never
+  implemented. Mock mode was already secondary per earlier notes in this
+  doc; revisit if it's still needed.
+- Consolidated the frontend build output: `build.ps1` used to copy the
+  same `frontend/dist` output to *two* places — a repo-root `dist/`
+  (`static.go`'s `//go:embed` source) and `bin/static/` (the plain copy
+  handed to the cross-origin split deploy, i.e. what's actually copied to
+  nginx's docroot in production) — for no real reason, since both were
+  byte-identical copies of the same single `npm run build` run. Pointed
+  `//go:embed` directly at `bin/static` instead (`static.go`,
+  `router.go`'s `fs.Sub(staticFiles, "bin/static")`) and dropped the
+  now-redundant repo-root copy from `build.ps1`; `dev.ps1`'s placeholder
+  creation and `.gitignore`'s `/dist` entry updated to match. One build
+  output now serves both the embedded-binary and split-deploy shapes.
+  Verified: `build.ps1 -Only frontend` produces `bin/static/` and no
+  repo-root `dist/`; the compiled binary served the embedded frontend
+  correctly (`GET /yoyojudge/` → `200`, real `index.html`).
 
 ## What's not implemented yet
 

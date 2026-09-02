@@ -16,7 +16,7 @@ Or just run `.\dev.ps1` (PowerShell), which does both of the above in separate w
 
 Open `http://localhost:5173/` — not `/yoyojudge`; that prefix only applies to the production build and the backend's own API routes, the Vite dev server itself serves at root.
 
-`go run .`/`go build .` need `./dist` to exist first (the frontend is embedded via `//go:embed`, see `static.go`) — either run `.\build.ps1` once, or use `.\dev.ps1`, which creates an empty placeholder for you automatically.
+`go run .`/`go build .` need `./bin/static` to exist first (the frontend is embedded via `//go:embed`, see `static.go`) — either run `.\build.ps1` once, or use `.\dev.ps1`, which creates an empty placeholder for you automatically.
 
 The database (`yoyojudge.db`) is created automatically on first run, empty — there's no seed/demo data by default. To log in on a fresh database you need Google OAuth configured (see below); there's no built-in way to create the first account otherwise. `server/db.go`'s `SeedIfEmpty` (demo contest + users) still exists but isn't called from `main.go` — uncomment that call there if you want it back for local testing.
 

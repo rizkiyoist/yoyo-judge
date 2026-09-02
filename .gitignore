@@ -8,4 +8,3 @@ env.json
 *.db-wal
 /tmp
 /bin
-/dist

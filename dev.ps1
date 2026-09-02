@@ -38,19 +38,19 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$distDir = Join-Path $root 'dist'
+$staticDir = Join-Path $root 'bin\static'
 $frontendDir = Join-Path $root 'frontend'
 
-# static.go's //go:embed all:dist requires this directory to exist (with at
-# least one file) at compile time, even for `go run` here where the
-# embedded copy is never actually served - Vite serves the frontend in dev
-# mode instead. A real production build (./build.ps1) overwrites this with
-# the real frontend output; this placeholder only exists so a fresh clone
-# doesn't fail to compile before that's ever been run.
-if (-not (Test-Path $distDir) -or -not (Get-ChildItem $distDir -Recurse -File -ErrorAction SilentlyContinue)) {
-    Write-Host "==> Creating placeholder ./dist (go:embed requires it; unused in dev mode)" -ForegroundColor Yellow
-    New-Item -ItemType Directory -Force -Path $distDir | Out-Null
-    Set-Content -Path (Join-Path $distDir 'index.html') -Value '<!-- placeholder for go:embed; run ./build.ps1 for a real build -->'
+# static.go's //go:embed all:bin/static requires this directory to exist
+# (with at least one file) at compile time, even for `go run` here where
+# the embedded copy is never actually served - Vite serves the frontend in
+# dev mode instead. A real production build (./build.ps1) overwrites this
+# with the real frontend output; this placeholder only exists so a fresh
+# clone doesn't fail to compile before that's ever been run.
+if (-not (Test-Path $staticDir) -or -not (Get-ChildItem $staticDir -Recurse -File -ErrorAction SilentlyContinue)) {
+    Write-Host "==> Creating placeholder ./bin/static (go:embed requires it; unused in dev mode)" -ForegroundColor Yellow
+    New-Item -ItemType Directory -Force -Path $staticDir | Out-Null
+    Set-Content -Path (Join-Path $staticDir 'index.html') -Value '<!-- placeholder for go:embed; run ./build.ps1 for a real build -->'
 }
 
 if (-not (Test-Path (Join-Path $frontendDir 'node_modules'))) {
@@ -70,9 +70,9 @@ Write-Host "==> Starting backend: go run . (PORT=$Port)" -ForegroundColor Cyan
 # frontendBaseURL() infers the post-login redirect target from the
 # backend's own request host (localhost:$Port), not the Vite dev server -
 # so a Google login would redirect back into the backend's embedded
-# ./dist (server/oauth.go serves its own SPA fallback there) instead of the
-# actual dev frontend at :5173. That embedded dist/ is whatever the last
-# `./build.ps1` produced - typically a *production*-configured build (its
+# ./bin/static (server/oauth.go serves its own SPA fallback there) instead
+# of the actual dev frontend at :5173. That embedded copy is whatever the
+# last `./build.ps1` produced - typically a *production*-configured build (its
 # own baked-in API base URL points at the real deployed backend, not this
 # local one) - so a session token minted by this local backend would look
 # invalid there, and login would appear to hang forever on "Finishing

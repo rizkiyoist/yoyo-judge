@@ -99,7 +99,7 @@ func BuildRouter(br *BuildRouterRequest) {
 	// This must be registered last so it doesn't shadow the routes above.
 	// Unused when the frontend is instead served directly by nginx from its
 	// own docroot (the cross-origin deployment shape) — harmless either way.
-	distFS, err := fs.Sub(staticFiles, "dist")
+	distFS, err := fs.Sub(staticFiles, "bin/static")
 	if err != nil {
 		log.Fatal("failed to load embedded frontend: ", err)
 	}

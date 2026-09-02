@@ -3,16 +3,19 @@
   Build the yoyo-judge backend (Go) and frontend (Vue/Vite).
 
   The frontend is embedded into the backend binary (see static.go's
-  //go:embed all:dist), so Build-Frontend must run before Build-Backend -
-  the backend build reads whatever's currently in ./dist. The result is one
-  binary per OS (Windows + Linux) that serves the API and the frontend on
-  the same port; nothing else needs to be deployed or configured to serve
-  static files separately.
+  //go:embed all:bin/static), so Build-Frontend must run before
+  Build-Backend - the backend build reads whatever's currently in
+  ./bin/static. That same folder doubles as the plain copy for anyone
+  hosting the frontend separately (the cross-origin split deploy shape) -
+  one build output, not two. The result is one binary per OS (Windows +
+  Linux) that serves the API and the frontend on the same port; nothing
+  else needs to be deployed or configured to serve static files
+  separately for the embedded shape.
 
 .PARAMETER Only
   Build only "backend" or only "frontend". Omit to build both. Note:
-  "-Only backend" embeds whatever is currently in ./dist (from a previous
-  full build), not a fresh frontend build.
+  "-Only backend" embeds whatever is currently in ./bin/static (from a
+  previous full build), not a fresh frontend build.
 
 .PARAMETER BasePath
   URL prefix the frontend build is served under, e.g. "/yoyojudge" (the
@@ -51,12 +54,12 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $binDir = Join-Path $root 'bin'
-$embedDistDir = Join-Path $root 'dist'
+$staticDir = Join-Path $binDir 'static'
 
 function Build-Backend {
     Write-Host "==> Building backend (Go)" -ForegroundColor Cyan
-    if (-not (Test-Path $embedDistDir)) {
-        throw "$embedDistDir does not exist - run Build-Frontend (or ./build.ps1 without -Only backend) first, since static.go embeds it into the binary."
+    if (-not (Test-Path $staticDir)) {
+        throw "$staticDir does not exist - run Build-Frontend (or ./build.ps1 without -Only backend) first, since static.go embeds it into the binary."
     }
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Push-Location $root
@@ -117,32 +120,25 @@ function Build-Frontend {
         Pop-Location
     }
 
-    # Copy into ./dist at the repo root - this is what static.go's
-    # //go:embed all:dist pulls into the backend binary at compile time.
-    if (Test-Path $embedDistDir) {
-        Remove-Item -Recurse -Force $embedDistDir
-    }
-    Copy-Item -Recurse (Join-Path $frontendDir 'dist') $embedDistDir
-    Write-Host "Frontend copied for embedding: $embedDistDir" -ForegroundColor Green
-
-    # Also drop a plain copy next to the binaries, for anyone who wants to
-    # host the frontend separately instead of via the embedded copy - not
-    # required for the embedded single-binary deploy.
-    $staticDir = Join-Path $binDir 'static'
+    # Copy into ./bin/static - this is what static.go's //go:embed
+    # all:bin/static pulls into the backend binary at compile time, and
+    # also what anyone hosting the frontend separately (the cross-origin
+    # split deploy shape) copies to their web server's docroot. One build
+    # output serves both purposes.
     if (Test-Path $staticDir) {
         Remove-Item -Recurse -Force $staticDir
     }
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Copy-Item -Recurse (Join-Path $frontendDir 'dist') $staticDir
-    Write-Host "Frontend also copied (unused standalone copy): $staticDir" -ForegroundColor Green
+    Write-Host "Frontend copied: $staticDir" -ForegroundColor Green
 }
 
 switch ($Only) {
     'backend' { Build-Backend }
     'frontend' { Build-Frontend }
     default {
-        # Frontend must build first: static.go embeds ./dist into the
-        # backend binary at compile time.
+        # Frontend must build first: static.go embeds ./bin/static into
+        # the backend binary at compile time.
         Build-Frontend
         Build-Backend
     }

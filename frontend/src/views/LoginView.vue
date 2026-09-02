@@ -1,31 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-
-const auth = useAuthStore()
-const router = useRouter()
-const route = useRoute()
-
-const email = ref('')
-const error = ref('')
-
-const useMock = import.meta.env.VITE_USE_MOCK === 'true'
 const basePath = (import.meta.env.VITE_BASE_PATH ?? '/yoyojudge').replace(/\/$/, '')
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? `${basePath}/api`
 const googleLoginUrl = `${apiBase}/auth/google`
-
-async function submit(chosenEmail?: string) {
-  error.value = ''
-  const target = chosenEmail ?? email.value
-  const ok = await auth.login(target)
-  if (!ok) {
-    error.value = `No user found for "${target}".`
-    return
-  }
-  const redirect = (route.query.redirect as string) || '/'
-  router.push(redirect)
-}
 </script>
 
 <template>
@@ -33,35 +9,11 @@ async function submit(chosenEmail?: string) {
     <h2>Log in</h2>
 
     <a
-      v-if="!useMock"
       :href="googleLoginUrl"
       class="button primary"
-      style="display: block; text-align: center; margin-bottom: 16px"
+      style="display: block; text-align: center"
     >
       Continue with Google
     </a>
-
-    <details :open="useMock">
-      <summary class="muted" style="cursor: pointer; margin-bottom: 12px; user-select: none">
-        Demo / email login
-      </summary>
-
-      <p class="muted" style="font-size: 0.85em; margin-top: 8px">
-        No real authentication - picks any existing user by email.
-      </p>
-
-      <form class="field" @submit.prevent="submit()">
-        <label for="email">Email</label>
-        <input
-          id="email"
-          v-model="email"
-          type="email"
-          placeholder="you@example.com"
-          autocomplete="email"
-        />
-        <button class="primary" type="submit" style="margin-top: 8px">Log in</button>
-      </form>
-      <p v-if="error" class="error">{{ error }}</p>
-    </details>
   </div>
 </template>
