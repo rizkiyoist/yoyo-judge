@@ -25,6 +25,7 @@ const isCurrentHeadJudge = computed(() => contest.value?.headJudgeUserId === aut
 // head judge; locking/unlocking is head-judge-only (see role table in
 // docs/PROGRESS.md).
 const canManage = computed(() => isOwnerUser.value || isCurrentHeadJudge.value)
+const hasDivisions = computed(() => (contest.value?.divisions.length ?? 0) > 0)
 const selectedDivision = computed(() => contest.value?.divisions.find((d) => d.id === selectedDivisionId.value))
 
 function stageLabel(stage: ScoringStage): string {
@@ -156,7 +157,14 @@ const evalAssignments = computed(() =>
       🔒 This contest is locked. {{ isCurrentHeadJudge ? 'Unlock it below to make changes.' : 'Only the head judge can unlock it.' }}
     </p>
 
-    <div v-if="canManage && !contest.locked" class="card">
+    <div v-if="canManage && !hasDivisions" class="card">
+      <p class="error">
+        No divisions yet. Add a division first.
+        <RouterLink :to="{ name: 'contest-edit', params: { contestId } }">Go to Divisions</RouterLink>
+      </p>
+    </div>
+
+    <div v-if="canManage && !contest.locked && hasDivisions" class="card">
       <h2>Invite a judge</h2>
       <div class="row">
         <div class="field">
@@ -220,7 +228,7 @@ const evalAssignments = computed(() =>
       <span v-if="transferError" class="error">{{ transferError }}</span>
     </div>
 
-    <div class="card">
+    <div v-if="hasDivisions" class="card">
       <h2 style="margin-bottom: 10px">Current assignments</h2>
       <p class="muted" style="margin-top: -4px; margin-bottom: 12px">Division: <strong>{{ selectedDivision?.name }}</strong></p>
       <div class="row" style="gap: 4px; margin-bottom: 14px">
