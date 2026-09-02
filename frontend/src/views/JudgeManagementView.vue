@@ -188,6 +188,42 @@ const clickerAssignments = computed(() =>
 const evalAssignments = computed(() =>
   assignmentsForSelection.value.filter((a) => a.role === 'evaluator').sort((a, b) => a.slot - b.slot),
 )
+
+// Major deduction is always an additional role on top of an existing
+// clicker/evaluator assignment for the same division+stage - never
+// assigned to someone with no other role there.
+const mdAssignment = computed(() => assignmentsForSelection.value.find((a) => a.role === 'major_deduction'))
+const mdCandidates = computed(() => {
+  const ids = new Set(
+    assignmentsForSelection.value.filter((a) => a.role !== 'major_deduction').map((a) => a.userId),
+  )
+  return [...ids]
+})
+const mdTargetId = ref('')
+const assigningMd = ref(false)
+const mdError = ref('')
+
+async function assignMd() {
+  if (!selectedDivisionId.value || !mdTargetId.value) return
+  assigningMd.value = true
+  mdError.value = ''
+  try {
+    await api.inviteJudge(
+      props.contestId,
+      selectedDivisionId.value,
+      selectedStage.value,
+      { userId: mdTargetId.value },
+      'major_deduction',
+      1,
+    )
+    mdTargetId.value = ''
+    await load()
+  } catch (e) {
+    mdError.value = e instanceof Error ? e.message : 'Failed to assign major deduction judge'
+  } finally {
+    assigningMd.value = false
+  }
+}
 </script>
 
 <template>
@@ -322,6 +358,45 @@ const evalAssignments = computed(() =>
           </table>
           <p v-else class="muted">None assigned.</p>
         </div>
+      </div>
+
+      <div style="border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-top: 24px; background: var(--bg-alt)">
+        <h3 style="margin: 0 0 6px">Major Deduction Judge</h3>
+        <p class="muted" style="font-size: 0.85em; margin-top: 0">
+          Always an additional role for a judge already assigned above.
+        </p>
+        <table v-if="mdAssignment" style="max-width: 400px">
+          <thead>
+            <tr>
+              <th>Judge</th>
+              <th v-if="canManage"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <strong v-if="isOwnerUserId(mdAssignment.userId)">{{ userLabel(mdAssignment.userId) }}</strong>
+                <template v-else>{{ userLabel(mdAssignment.userId) }}</template>
+                <span v-if="isHeadJudgeUserId(mdAssignment.userId)" class="badge">Head Judge</span>
+              </td>
+              <td v-if="canManage"><button class="danger" :disabled="contest.locked" @click="remove(mdAssignment)">Remove</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="muted">None assigned.</p>
+        <div v-if="canManage" class="row" style="margin-top: 8px">
+          <select v-model="mdTargetId" :disabled="contest.locked || !mdCandidates.length">
+            <option value="" disabled>Choose a judge…</option>
+            <option v-for="uid in mdCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
+          </select>
+          <button :disabled="!mdTargetId || contest.locked || assigningMd" @click="assignMd">
+            {{ assigningMd ? 'Working…' : mdAssignment ? 'Replace' : 'Assign' }}
+          </button>
+        </div>
+        <p v-if="canManage && !mdCandidates.length" class="muted" style="font-size: 0.85em">
+          Invite a clicker or evaluation judge first.
+        </p>
+        <span v-if="mdError" class="error">{{ mdError }}</span>
       </div>
     </div>
 

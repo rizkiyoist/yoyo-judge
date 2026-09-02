@@ -44,6 +44,10 @@ type JudgeRole string
 const (
 	RoleClicker   JudgeRole = "clicker"
 	RoleEvaluator JudgeRole = "evaluator"
+	// RoleMajorDeduction is a single dedicated judge (slot always 1) who
+	// alone may record major deductions for a division+stage - see
+	// authorizeDeductionsWrite in store.go.
+	RoleMajorDeduction JudgeRole = "major_deduction"
 )
 
 // JudgeAssignment mirrors frontend/src/types.ts's JudgeAssignment.

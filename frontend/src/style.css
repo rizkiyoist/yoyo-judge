@@ -196,6 +196,24 @@ th {
   font-size: 0.9rem;
 }
 
+.save-status {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.save-status--saved {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+}
+
+.save-status--pending {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+}
+
 .badge-year {
   display: inline-block;
   padding: 3px 10px;

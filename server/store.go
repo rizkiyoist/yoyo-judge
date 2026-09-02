@@ -386,20 +386,6 @@ func (s *Store) isAssignedSlot(divisionID string, stage calc.ScoringStage, role 
 	return count > 0
 }
 
-// isAssignedAnyRole reports whether userID holds any slot (clicker or
-// evaluator) for this division+stage — used to authorize major
-// deductions, which any assigned judge (not just clickers, and not just
-// one specific slot) may submit; one player has one shared deduction
-// value regardless of how many judges are watching them.
-func (s *Store) isAssignedAnyRole(divisionID string, stage calc.ScoringStage, userID string) bool {
-	var count int64
-	s.db.Model(&DBJudgeAssignment{}).Where(
-		"division_id = ? AND stage = ? AND user_id = ?",
-		divisionID, string(stage), userID,
-	).Count(&count)
-	return count > 0
-}
-
 // authorizeSlotScoreWrite checks whether userID may submit a clicker/eval
 // score for exactly this division+stage+role+slot: a locked contest
 // rejects everyone, full stop, even the head judge (they must unlock
@@ -425,8 +411,8 @@ func (s *Store) authorizeSlotScoreWrite(divisionID string, stage calc.ScoringSta
 }
 
 // authorizeDeductionsWrite is authorizeSlotScoreWrite's counterpart for
-// major deductions, which any judge assigned to the division+stage (any
-// role, not just one specific slot) is allowed to record.
+// major deductions, which only the single dedicated major-deduction judge
+// (slot 1 of RoleMajorDeduction) for this division+stage may record.
 func (s *Store) authorizeDeductionsWrite(divisionID string, stage calc.ScoringStage, userID string) (status int, message string) {
 	contestID, found := s.divisionContestID(divisionID)
 	if !found {
@@ -438,8 +424,8 @@ func (s *Store) authorizeDeductionsWrite(divisionID string, stage calc.ScoringSt
 	if s.isHeadJudge(contestID, userID) {
 		return 0, ""
 	}
-	if !s.isAssignedAnyRole(divisionID, stage, userID) {
-		return http.StatusForbidden, "you are not an assigned judge for this division/stage"
+	if !s.isAssignedSlot(divisionID, stage, RoleMajorDeduction, 1, userID) {
+		return http.StatusForbidden, "you are not the major deduction judge for this division/stage"
 	}
 	return 0, ""
 }

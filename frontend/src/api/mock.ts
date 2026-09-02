@@ -288,8 +288,10 @@ function assertDeductionsWritable(
 ): void {
   if (contest.locked) throw new Error('this contest is locked')
   if (isHeadJudge(contest, userId)) return
-  const assigned = division.assignments.some((a) => a.stage === stage && a.userId === userId)
-  if (!assigned) throw new Error('you are not an assigned judge for this division/stage')
+  const assigned = division.assignments.some(
+    (a) => a.stage === stage && a.role === 'major_deduction' && a.userId === userId,
+  )
+  if (!assigned) throw new Error('you are not the major deduction judge for this division/stage')
 }
 
 function rawScoresFor(division: DbDivision, stage: ScoringStage, playerId: string): PlayerRawScores {

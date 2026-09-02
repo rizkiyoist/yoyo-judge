@@ -4,7 +4,8 @@ _Last updated: 2026-09-02 (owner vs. transferable head judge; whole-contest
 lock replaces the earlier per-stage lock; division/player deletion;
 eval-score scale fixed to real 0-10, verified against the source xlsx;
 removed the dead pre-SQLite MySQL/GORM code entirely; demo/seed data hidden
-without deleting it, auto-seeding disabled)_
+without deleting it, auto-seeding disabled; dedicated major-deduction judge
+role restricts who can enter deductions; per-field Saved/Saving status)_
 
 ## Resuming on a new machine
 
@@ -1039,6 +1040,90 @@ list of judge names. Both hidden, nothing deleted, seed code untouched.
 - Verified: `go build`/`vet`/`test` and the frontend typecheck/`vitest`
   suite all still pass; the live-db fix was confirmed end-to-end as
   described above rather than just assumed from the `UPDATE`'s row count.
+
+### Dedicated major-deduction judge role; per-field Saved/Saving status; judges-page UX pass — new, 2026-09-02
+
+**Major deduction judge**: previously any assigned clicker or evaluator
+judge could submit a player's major deductions (Stop/Discard/Cut). Changed
+to a dedicated single judge per division+stage, following direct feedback:
+"there is never a case when a judge is only major deduction" — it's always
+an *additional* role on top of an existing clicker/evaluator assignment,
+never assigned standalone.
+
+- `server/types.go` — new `RoleMajorDeduction JudgeRole = "major_deduction"`,
+  alongside the existing `RoleClicker`/`RoleEvaluator`. A `JudgeAssignment`
+  is already per-role (not per-user), so one person naturally ends up with
+  two separate assignment rows (e.g. clicker slot 1 *and* major-deduction
+  slot 1) — no data model change needed beyond the new role constant.
+- `server/store.go`'s `authorizeDeductionsWrite` — replaced the "any
+  assigned judge" check (`isAssignedAnyRole`, deleted, now unused) with
+  `isAssignedSlot(divisionID, stage, RoleMajorDeduction, 1, userID)` — only
+  that one judge (slot always 1) or the head judge may submit deductions
+  now; `403` for everyone else, matching `authorizeSlotScoreWrite`'s
+  pattern. `frontend/src/api/mock.ts`'s `assertDeductionsWritable` mirrors
+  the same restriction.
+- `JudgeManagementView.vue` — new "Major Deduction Judge" section inside
+  "Current assignments" (third column alongside Clicker/Evaluation), with
+  its own picker: a dropdown of *already-assigned* clicker/eval judges for
+  the selected division+stage (`mdCandidates`) and an Assign/Replace
+  button — deliberately not offered as a standalone "Role" choice in the
+  main "Invite a judge" form, so it can never be assigned to someone with
+  no other role there.
+- `ScoreEntryView.vue` — deduction inputs removed entirely from the
+  clicker and evaluator tables; now live in their own card, gated by
+  `myMdAssignment` (`v-if`), so **a non-MD judge never even sees deduction
+  input fields, not just can't submit them** — confirmed by grepping the
+  compiled template for every reference to "deduction" and checking each
+  one sits inside that one gated block.
+- `ScoreOverrideView.vue` — matching "Major deduction judge scores" card,
+  visible only within the page's existing head-judge-only gate (so: viewable
+  by the assigned MD judge on the normal scoring page, or the head judge
+  here while overriding — exactly the two audiences asked for, no one else).
+- Verified end-to-end against the compiled binary: assigned MD as an
+  *additional* role to an existing clicker judge (their clicker assignment
+  untouched); a different assigned judge (evaluator) got `403` submitting
+  deductions; the MD judge succeeded (`204`) *and* could still submit their
+  own clicker score (`204`) — confirming the two roles coexist correctly
+  for one person.
+
+**Per-field Saved/Saving status**: reported scores only ever save on the
+input's `change` event (blur/Enter/spinner, not every keystroke), and until
+now gave no feedback that a save actually reached the database. Added a
+small colored badge next to every clicker/eval/deduction input, independent
+per field:
+- `frontend/src/style.css` — new `.save-status`/`.save-status--saved`
+  (green, using the already-defined-but-unused `--success` token)/
+  `.save-status--pending` (red, `--danger`) classes.
+- `ScoreEntryView.vue` and `ScoreOverrideView.vue` — new
+  `saveStatus: Record<string, 'saving' | 'saved'>` keyed by
+  `section:playerId:field` (e.g. `clicker:p_123:plus`), set to `'saving'`
+  right before each `api.submit*` call and `'saved'` only after it
+  resolves — so a badge shows "Saving…" (red) for the in-flight round trip
+  and "Saved" (green) once the write is confirmed; if the request fails,
+  it stays on "Saving…" rather than silently claiming success.
+
+**Judges-page UX pass** (several small direct requests in sequence):
+- `ContestEditView.vue` — "Go to Judges" changed from a button to a plain
+  text link, matching the existing "← Back to contests" style.
+- `JudgeManagementView.vue` — "Head judge" card moved to the bottom of the
+  page (was between "Invite a judge" and "Current assignments"), and now
+  opens with "The head judge can override any judge's scores and lock/unlock
+  the contest." The "Invite a judge" card is no longer hidden outright when
+  a contest has no divisions — it's shown greyed out (`opacity: 0.5` +
+  a disabled `<fieldset>`) with "You can add judges after setting
+  divisions." and a link to the Divisions page, so the UI shape stays
+  visible instead of disappearing.
+- Invite form: the manual "Slot" dropdown is gone. Instead there's a
+  "Stage" choice (Both/Prelim/Final, defaulting to Both, only offering
+  stages the selected division actually has), and the slot is
+  auto-computed client-side as the lowest 1-6 not already taken by that
+  role in every targeted stage (`nextInviteSlot`) — shown as a hint
+  ("Will be assigned slot N"), with the invite buttons disabled and an
+  error shown if all 6 are taken. Choosing "Both" invites the *same* slot
+  number into every stage the division has, in one click, instead of
+  requiring two separate invites.
+- `ContestListView.vue` — Lock/Unlock button moved to the rightmost
+  position in each contest's action row (was first).
 
 ## What's not implemented yet
 

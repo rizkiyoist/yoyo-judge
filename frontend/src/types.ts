@@ -36,7 +36,9 @@ export interface Contest {
   divisions: Division[]
 }
 
-export type JudgeRole = 'clicker' | 'evaluator'
+// 'major_deduction' is always an additional role on top of an existing
+// clicker/evaluator assignment for the same judge - never assigned alone.
+export type JudgeRole = 'clicker' | 'evaluator' | 'major_deduction'
 
 export interface JudgeAssignment {
   id: string
