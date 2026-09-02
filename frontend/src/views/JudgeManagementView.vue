@@ -16,7 +16,10 @@ const searchResults = ref<User[]>([])
 const selectedDivisionId = ref('')
 const selectedStage = ref<ScoringStage>('final')
 const selectedRole = ref<JudgeRole>('clicker')
-const selectedSlot = ref(1)
+// Stage(s) to invite into - 'both' invites the same slot into every stage
+// the division has; slot itself is auto-assigned, not picked.
+const inviteStage = ref<'both' | ScoringStage>('both')
+const inviteError = ref('')
 
 const isOwnerUser = computed(() => contest.value?.ownerUserId === auth.user?.id)
 const isCurrentHeadJudge = computed(() => contest.value?.headJudgeUserId === auth.user?.id)
@@ -27,6 +30,43 @@ const isCurrentHeadJudge = computed(() => contest.value?.headJudgeUserId === aut
 const canManage = computed(() => isOwnerUser.value || isCurrentHeadJudge.value)
 const hasDivisions = computed(() => (contest.value?.divisions.length ?? 0) > 0)
 const selectedDivision = computed(() => contest.value?.divisions.find((d) => d.id === selectedDivisionId.value))
+
+const inviteStageOptions = computed(() => {
+  const stages = selectedDivision.value?.stages ?? []
+  const opts: { value: 'both' | ScoringStage; label: string }[] = []
+  if (stages.length > 1) opts.push({ value: 'both', label: 'Both' })
+  if (stages.includes('prelim')) opts.push({ value: 'prelim', label: 'Prelim' })
+  if (stages.includes('final')) opts.push({ value: 'final', label: 'Final' })
+  return opts
+})
+
+// Which stages an invite actually targets, given the current choice.
+const inviteTargetStages = computed<ScoringStage[]>(() => {
+  const stages = selectedDivision.value?.stages ?? []
+  if (inviteStage.value === 'both') return stages
+  return stages.includes(inviteStage.value) ? [inviteStage.value] : stages
+})
+
+// Lowest slot (1-6) free in every targeted stage for the selected role, so
+// the same judge gets the same slot number across prelim and final. null
+// if all 6 slots are already taken in at least one targeted stage.
+const nextInviteSlot = computed<number | null>(() => {
+  const stages = inviteTargetStages.value
+  if (!stages.length) return null
+  for (let slot = 1; slot <= 6; slot++) {
+    const taken = stages.some((stage) =>
+      assignments.value.some(
+        (a) =>
+          a.divisionId === selectedDivisionId.value &&
+          a.stage === stage &&
+          a.role === selectedRole.value &&
+          a.slot === slot,
+      ),
+    )
+    if (!taken) return slot
+  }
+  return null
+})
 
 function stageLabel(stage: ScoringStage): string {
   return stage === 'prelim' ? 'Prelim' : 'Final'
@@ -50,6 +90,7 @@ watch(
     if (division && !division.stages.includes(selectedStage.value)) {
       selectedStage.value = division.stages[0] ?? 'final'
     }
+    inviteStage.value = division && division.stages.length === 1 ? division.stages[0] : 'both'
   },
   { immediate: true },
 )
@@ -75,17 +116,18 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // or for a plain name search with no matches.
 const canInviteByEmail = computed(() => !searchResults.value.length && EMAIL_RE.test(query.value.trim()))
 
-// Invites always land on whichever stage tab is currently active.
 async function invite(identity: { userId: string } | { email: string }) {
   if (!selectedDivisionId.value) return
-  await api.inviteJudge(
-    props.contestId,
-    selectedDivisionId.value,
-    selectedStage.value,
-    identity,
-    selectedRole.value,
-    selectedSlot.value,
-  )
+  const stages = inviteTargetStages.value
+  const slot = nextInviteSlot.value
+  if (!stages.length || slot === null) {
+    inviteError.value = 'All slots for this role are already assigned.'
+    return
+  }
+  inviteError.value = ''
+  for (const stage of stages) {
+    await api.inviteJudge(props.contestId, selectedDivisionId.value, stage, identity, selectedRole.value, slot)
+  }
   query.value = ''
   searchResults.value = []
   await load()
@@ -182,14 +224,15 @@ const evalAssignments = computed(() =>
           </select>
         </div>
         <div class="field">
-          <label>Slot</label>
-          <select v-model.number="selectedSlot">
-            <option v-for="n in 6" :key="n" :value="n">{{ n }}</option>
+          <label>Stage</label>
+          <select v-model="inviteStage">
+            <option v-for="opt in inviteStageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
           </select>
         </div>
       </div>
       <p class="muted" style="margin-top: -6px">
-        Invites go to the <strong>{{ stageLabel(selectedStage) }}</strong> tab selected below.
+        <template v-if="nextInviteSlot !== null">Will be assigned slot {{ nextInviteSlot }}.</template>
+        <template v-else>All slots for this role are already assigned.</template>
       </p>
 
       <div class="field">
@@ -198,36 +241,21 @@ const evalAssignments = computed(() =>
       </div>
 
       <div v-if="searchResults.length" class="row" style="flex-direction: column; align-items: stretch">
-        <button v-for="u in searchResults" :key="u.id" @click="invite({ userId: u.id })">
+        <button v-for="u in searchResults" :key="u.id" :disabled="nextInviteSlot === null" @click="invite({ userId: u.id })">
           Invite {{ u.firstName }} {{ u.lastName }} - {{ u.email }}
         </button>
       </div>
       <div v-else-if="canInviteByEmail" class="row" style="flex-direction: column; align-items: stretch">
-        <button @click="invite({ email: query.trim() })">Invite {{ query.trim() }} (not registered yet)</button>
+        <button :disabled="nextInviteSlot === null" @click="invite({ email: query.trim() })">
+          Invite {{ query.trim() }} (not registered yet)
+        </button>
         <p class="muted" style="font-size: 0.85em; margin-top: 4px">
           No account with this email yet - inviting reserves their slot, and they'll see this
           contest as soon as they sign in with this email.
         </p>
       </div>
+      <p v-if="inviteError" class="error">{{ inviteError }}</p>
       </fieldset>
-    </div>
-
-    <div v-if="canManage" class="card">
-      <h2>Head judge</h2>
-      <p class="muted">
-        Currently: <strong>{{ userLabel(contest.headJudgeUserId) }}</strong>.
-        Can be handed to any invited judge.
-      </p>
-      <div class="row">
-        <select v-model="transferTargetId" :disabled="contest.locked">
-          <option value="" disabled>Choose a judge…</option>
-          <option v-for="uid in headJudgeCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
-        </select>
-        <button :disabled="!transferTargetId || contest.locked || transferring" @click="transferHeadJudge">
-          {{ transferring ? 'Working…' : 'Make head judge' }}
-        </button>
-      </div>
-      <span v-if="transferError" class="error">{{ transferError }}</span>
     </div>
 
     <div v-if="hasDivisions" class="card">
@@ -295,6 +323,27 @@ const evalAssignments = computed(() =>
           <p v-else class="muted">None assigned.</p>
         </div>
       </div>
+    </div>
+
+    <div v-if="canManage" class="card">
+      <h2>Head judge</h2>
+      <p class="muted">
+        The head judge can override any judge's scores and lock/unlock the contest.
+      </p>
+      <p class="muted">
+        Currently: <strong>{{ userLabel(contest.headJudgeUserId) }}</strong>.
+        Can be handed to any invited judge.
+      </p>
+      <div class="row">
+        <select v-model="transferTargetId" :disabled="contest.locked">
+          <option value="" disabled>Choose a judge…</option>
+          <option v-for="uid in headJudgeCandidates" :key="uid" :value="uid">{{ userLabel(uid) }}</option>
+        </select>
+        <button :disabled="!transferTargetId || contest.locked || transferring" @click="transferHeadJudge">
+          {{ transferring ? 'Working…' : 'Make head judge' }}
+        </button>
+      </div>
+      <span v-if="transferError" class="error">{{ transferError }}</span>
     </div>
   </div>
   <p v-else class="muted">Loading…</p>
