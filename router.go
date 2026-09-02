@@ -13,34 +13,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"yoyo-judge/config"
 	"yoyo-judge/server"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
-	"gorm.io/gorm"
 )
 
-type Router interface {
-}
-
-type router struct {
-	// routes   map[string]map[string]demo.Handler
-	handlers map[string]map[string]interface{}
-	// middlewares []http.HandlerFunc
-}
-
 type BuildRouterRequest struct {
-	DB    *gorm.DB
-	Cfg   config.Config
 	Store *server.Store
-}
-
-func NewRouter() Router {
-	r := &router{
-		// routes: make(map[string]map[string]demo.Handler),
-	}
-	return r
 }
 
 // basePath returns the URL prefix everything is served under: "" for a

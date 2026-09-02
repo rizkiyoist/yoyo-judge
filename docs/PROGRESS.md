@@ -2,7 +2,8 @@
 
 _Last updated: 2026-09-02 (owner vs. transferable head judge; whole-contest
 lock replaces the earlier per-stage lock; division/player deletion;
-eval-score scale fixed to real 0-10, verified against the source xlsx)_
+eval-score scale fixed to real 0-10, verified against the source xlsx;
+removed the dead pre-SQLite MySQL/GORM code entirely)_
 
 ## Resuming on a new machine
 
@@ -10,12 +11,13 @@ Repo state as of this note: `main` — everything described below is already
 committed and pushed, so `git clone`/`git pull` is all that's needed for the
 code itself. What **won't** come with a fresh clone (all gitignored):
 
-- `env.json` (copy from `env.json.example`) — now carries real secrets: a
+- `env.json` (copy from `env.json.example`) — carries real secrets: a
   `"google"` section with `client_id`/`client_secret`/`redirect_url` for
   Google OAuth, loaded by `envjson.go` at startup (see "Google credentials
-  via env.json" below). The old `"mysql"` section was removed — nothing
-  reads it, superseded by SQLite (see below). `dbconfig.yml` is likewise
-  unused now, only relevant if you touch the old `migration/` folder.
+  via env.json" below). The old `"mysql"` section, `dbconfig.yml`/
+  `dbconfig.yml.example`, and the `migration/` folder they configured are
+  all gone (see "App scaffold" in "What's implemented") — nothing to
+  set up there anymore.
 - `bin/`, `dist/` — build output. Run `./build.ps1` (repo root, PowerShell)
   to regenerate both the Windows/Linux backend binaries and the embedded
   frontend `dist/`. **`go build .`/`go run .` will fail on a fresh clone**
@@ -152,6 +154,25 @@ request/domain models but aren't yet wired to the writer layer or exposed
 over HTTP.
 
 ### App scaffold
+
+**Removed, 2026-09-02** — `config/`, `domain/service/generic.go`,
+`library/helper/limit_offset.go`, `domain/model/` (`user.go`,
+`user_social.go`), `controller/auth/`, `request/user.go`, and `migration/`
+were all deleted: none of them had any importers left (`grep` across every
+`.go` file turned up zero references to any of them) once `server/`'s
+SQLite-backed models/auth/handlers took over everything they used to be
+for. `go mod tidy` afterward dropped their now-unused dependencies too
+(`spf13/viper`, `gorm.io/driver/mysql`, `go-sql-driver/mysql`, and their
+transitive deps) — `github.com/glebarez/sqlite` and `golang.org/x/oauth2`
+moved from indirect to direct requirements in the process (they'd been
+indirect only because `config`/nothing had explicitly required them
+before). `dbconfig.yml.example` was deleted alongside `migration/` since
+it only ever configured `sql-migrate` against that folder. Verified: full
+`go build ./...` + `go vet ./...` + `go test ./...`, plus a Linux
+cross-compile (`GOOS=linux CGO_ENABLED=0`, matching what `build.ps1`
+does), all still pass. What's below describes the original 2024 scaffold
+for history — none of it exists anymore.
+
 - `main.go` — loads config, opens MySQL via GORM, builds the router.
 - `router.go` — `mux` router + CORS, only a health-check `"/"` route wired up;
   commented-out placeholder for a real route group.
@@ -975,17 +996,15 @@ touch it, sort of — but only a UI/metadata bug, not the arithmetic:
 ## What's not implemented yet
 
 - `handler/input.go`'s structs (`SetUp`, `Player`, `RawTex`, `RawPev`) aren't
-  mapped to `calc.PlayerInput`/`calc.Contest` or connected to `server/`,
-  `request/`, or any controller/usecase layer. These predate `server/` and
-  look increasingly redundant with `server/db_models.go` + `server/types.go`
-  now that real persistence exists — worth revisiting whether they're still
-  needed at all rather than mapping them.
+  mapped to `calc.PlayerInput`/`calc.Contest` or connected to `server/` or
+  any usecase layer (the `request/`/`controller/auth` packages they used to
+  be headed toward are gone now, see "App scaffold" above). These predate
+  `server/` and look increasingly redundant with `server/db_models.go` +
+  `server/types.go` now that real persistence exists — worth revisiting
+  whether they're still needed at all rather than mapping them; unlike the
+  rest of that old scaffold, left in place since nothing has confirmed it's
+  safe to delete.
 - `OptionalSetUpPrelim` in `handler/input.go` is still an empty stub.
-- The unused `users`/`user_socials` MySQL/GORM models (`domain/model/`),
-  the `controller/auth` Google-login stub (superseded by `server/oauth.go`),
-  and `config/`'s MySQL connector are all now dead code relative to the
-  SQLite path above — candidates for deletion once confirmed nothing else
-  depends on them.
 - The old excelize-based writer/reader path (`library/writer`,
   `library/reader`, `library/calc/const.go`) is superseded but still in the
   tree — worth deleting once nothing needs it, along with the working-copy
@@ -1001,11 +1020,12 @@ touch it, sort of — but only a UI/metadata bug, not the arithmetic:
 2. **Done (2026-09-02):** ~~flesh out real authentication~~ — Google OAuth
    shipped alongside SQLite persistence. Still only Google as a provider,
    and no password-based account option.
-3. Decide the fate of `handler/input.go`'s structs, the `domain/model/`
-   `users`/`user_socials` GORM models, `controller/auth`, and `config/`'s
-   MySQL connector — all look like dead code now that `server/` has its own
-   types/models/auth backed by SQLite. Likely just deletable, but confirm
-   nothing still imports them first.
+3. **Done (2026-09-02):** ~~decide the fate of `domain/model/`,
+   `controller/auth`, `config/`'s MySQL connector~~ — deleted (along with
+   `domain/service/`, `library/helper/`, `request/`, and `migration/`),
+   confirmed unimported first. `handler/input.go`'s structs are the one
+   piece of that old scaffold *not* deleted — still genuinely undecided,
+   see "What's not implemented yet".
 4. Once the native calc engine + backend are trusted end-to-end, remove the
    superseded `library/writer`/`library/reader`/`library/calc/const.go` code
    and the root-level `.xlsx`/`.xlsxbak` working copies.
