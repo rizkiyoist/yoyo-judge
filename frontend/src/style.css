@@ -1,105 +1,157 @@
-:root {
-  --text: #2b2b33;
-  --text-muted: #6b6375;
-  --bg: #ffffff;
-  --bg-alt: #f6f5f9;
-  --border: #e0dee4;
-  --accent: #7c3aed;
-  --accent-contrast: #ffffff;
-  --danger: #c0392b;
-  --success: #1e8e3e;
+/* Design system: shadcn-inspired minimal. Light/dark parity via
+   [data-theme='dark'] on <html>. Class names below (.card, .btn, .badge,
+   .field, .row, .muted, .save-status, .badge-year, .col-*) are consumed
+   throughout the .vue templates — keep them stable. */
 
-  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+:root {
+  /* Surfaces */
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface-hover: #f4f4f5;
+  --bg-alt: #f4f4f5;
+
+  /* Text */
+  --text: #09090b;
+  --text-muted: #71717a;
+  --text-strong: #09090b;
+
+  /* Borders */
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --ring: rgba(124, 58, 237, 0.22);
+
+  /* Brand & status */
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(124, 58, 237, 0.08);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --success: #16a34a;
+  --success-soft: rgba(22, 163, 74, 0.12);
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+
+  /* Shape */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-btn: 6px;
+
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
   color-scheme: light;
 }
 
-/* Results table header colors, one per column-group, matching the IYYF
-   FINAL-SCORE sheet's own colored header row (purple T.Ex, pink T.Ev,
-   blue P.Ev, gold E.Total/Final Score, pink M. Deduction) - not exact
-   Excel fill colors, just the same idea. */
+/* Results-table column-group header tints — one per IYYF FINAL-SCORE
+   header group. Only header cells carry the tint; body cells stay flat. */
 :root {
   --tex-color: #7c3aed;
-  --tex-bg-header: rgba(124, 58, 237, 0.22);
+  --tex-bg-header: rgba(124, 58, 237, 0.14);
   --tev-color: #db2777;
-  --tev-bg-header: rgba(219, 39, 119, 0.18);
+  --tev-bg-header: rgba(219, 39, 119, 0.12);
   --pev-color: #1d4ed8;
-  --pev-bg-header: rgba(29, 78, 216, 0.22);
+  --pev-bg-header: rgba(29, 78, 216, 0.14);
   --total-color: #b45309;
-  --total-bg-header: rgba(180, 83, 9, 0.22);
+  --total-bg-header: rgba(180, 83, 9, 0.14);
   --deduction-color: #db2777;
-  --deduction-bg-header: rgba(219, 39, 119, 0.18);
+  --deduction-bg-header: rgba(219, 39, 119, 0.12);
 }
 
 :root[data-theme='dark'] {
-  --text: #e5e2ea;
-  --text-muted: #a39cb0;
-  --bg: #1c1b22;
-  --bg-alt: #26242e;
-  --border: #3a3842;
+  --bg: #0b0b0f;
+  --surface: #16161d;
+  --surface-hover: #1e1e28;
+  --bg-alt: #1e1e28;
+
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --text-strong: #fafafa;
+
+  --border: #2a2a35;
+  --border-strong: #3a3a48;
+  --ring: rgba(167, 139, 250, 0.3);
+
   --accent: #a78bfa;
-  --accent-contrast: #1c1b22;
-  --danger: #f08a75;
+  --accent-hover: #c4b5fd;
+  --accent-contrast: #16161d;
+  --accent-soft: rgba(167, 139, 250, 0.12);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
   --success: #4ade80;
+  --success-soft: rgba(74, 222, 128, 0.12);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+
   --tex-color: #c4b5fd;
-  --tex-bg-header: rgba(196, 181, 253, 0.28);
+  --tex-bg-header: rgba(196, 181, 253, 0.18);
   --tev-color: #f9a8d4;
-  --tev-bg-header: rgba(249, 168, 212, 0.22);
+  --tev-bg-header: rgba(249, 168, 212, 0.16);
   --pev-color: #93c5fd;
-  --pev-bg-header: rgba(147, 197, 253, 0.28);
+  --pev-bg-header: rgba(147, 197, 253, 0.18);
   --total-color: #fcd34d;
-  --total-bg-header: rgba(252, 211, 77, 0.28);
+  --total-bg-header: rgba(252, 211, 77, 0.18);
   --deduction-color: #f9a8d4;
-  --deduction-bg-header: rgba(249, 168, 212, 0.22);
+  --deduction-bg-header: rgba(249, 168, 212, 0.16);
+
   color-scheme: dark;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
 
 #app {
-  max-width: 1000px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 0 20px 48px;
+  padding: 0 20px 56px;
 }
 
-h1, h2, h3 {
+h1, h2, h3, h4 {
   line-height: 1.25;
+  color: var(--text-strong);
+  letter-spacing: -0.015em;
 }
+h1 { font-size: 1.5rem; font-weight: 600; }
+h2 { font-size: 1.125rem; font-weight: 600; }
+h3 { font-size: 0.95rem; font-weight: 600; }
 
 a {
   color: var(--accent);
+  text-decoration: none;
 }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* --- Nav --- */
 
 .app-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 18px 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .app-nav .brand {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   text-decoration: none;
-  color: var(--text);
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
 }
 
 .app-nav .user {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
 }
+
+/* --- Buttons --- */
 
 button, input, select {
   font: inherit;
@@ -108,14 +160,22 @@ button, input, select {
 button {
   cursor: pointer;
   border: 1px solid var(--border);
-  background: var(--bg);
-  border-radius: 6px;
-  padding: 8px 14px;
+  background: var(--surface);
+  border-radius: var(--radius-btn);
+  padding: 7px 12px;
   color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  line-height: 1.25;
 }
-
 button:hover {
-  border-color: var(--accent);
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 
 button.primary {
@@ -123,9 +183,18 @@ button.primary {
   border-color: var(--accent);
   color: var(--accent-contrast);
 }
+button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
 
 button.danger {
   color: var(--danger);
+  border-color: var(--border);
+  background: var(--surface);
+}
+button.danger:hover {
+  background: var(--danger-soft);
   border-color: var(--danger);
 }
 
@@ -134,51 +203,81 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* --- Inputs / selects --- */
+
 input[type='text'],
 input[type='email'],
-input[type='number'] {
+input[type='number'],
+input[type='password'],
+input[type='search'],
+select,
+textarea {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-btn);
   padding: 7px 10px;
   color: var(--text);
-  background: var(--bg);
+  background: var(--surface);
+  font-size: 0.9rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+input::placeholder { color: var(--text-muted); }
+
+/* --- Tables --- */
 
 table {
   border-collapse: collapse;
   width: 100%;
+  font-size: 0.875rem;
 }
 
 th, td {
   border: 1px solid var(--border);
-  padding: 8px 10px;
+  padding: 10px 12px;
   text-align: left;
-  font-size: 0.9rem;
+  vertical-align: top;
 }
 
 th {
   background: var(--bg-alt);
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
+
+/* --- Card --- */
 
 .card {
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
+  border-radius: var(--radius);
+  padding: 20px 24px;
   margin-bottom: 20px;
-  background: var(--bg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   overflow-x: auto;
 }
+
+/* --- Form field & row --- */
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   margin-bottom: 14px;
 }
 
 .field label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
+  font-weight: 500;
 }
 
 .row {
@@ -188,58 +287,68 @@ th {
   flex-wrap: wrap;
 }
 
+/* --- Muted text --- */
+
 .muted {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
+/* --- Badges --- */
+
 .badge {
-  display: inline-block;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
   border-radius: 999px;
   background: var(--bg-alt);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.badge-year {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  letter-spacing: 0.01em;
 }
 
 .error {
   color: var(--danger);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
+
+/* --- Save status pills --- */
 
 .save-status {
-  display: inline-block;
-  padding: 1px 8px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
 }
-
 .save-status--saved {
   color: var(--success);
-  background: color-mix(in srgb, var(--success) 15%, transparent);
+  background: var(--success-soft);
 }
-
 .save-status--pending {
   color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  background: var(--danger-soft);
 }
 
-.badge-year {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 0.85rem;
-  font-weight: 700;
-}
+/* --- Results table column-group header tints (headers only). --- */
 
-/* Column-group headers in the results table, one tint per group so every
-   group reads distinctly at a glance - matching the IYYF FINAL-SCORE
-   sheet's own colored header row. Only the header cells carry the tint;
-   body cells stay flat. */
 th.col-tex {
   color: var(--tex-color);
   background: var(--tex-bg-header);
@@ -252,7 +361,6 @@ th.col-pev {
   color: var(--pev-color);
   background: var(--pev-bg-header);
 }
-/* E.Total and Final Score share the sheet's gold. */
 th.col-total {
   color: var(--total-color);
   background: var(--total-bg-header);
@@ -260,4 +368,16 @@ th.col-total {
 th.col-deduction {
   color: var(--deduction-color);
   background: var(--deduction-bg-header);
+}
+
+/* --- Mobile --- */
+
+@media (max-width: 720px) {
+  #app { padding: 0 14px 40px; }
+  .card { padding: 16px; border-radius: 10px; }
+  .app-nav { padding: 14px 0; margin-bottom: 20px; }
+  h1 { font-size: 1.35rem; }
+  h2 { font-size: 1.05rem; }
+  th, td { padding: 8px 10px; font-size: 0.85rem; }
+  button { padding: 8px 12px; }
 }
