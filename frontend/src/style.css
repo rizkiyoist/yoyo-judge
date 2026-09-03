@@ -346,6 +346,10 @@ th {
   color: var(--danger);
   background: var(--danger-soft);
 }
+.save-status--idle {
+  color: var(--text-muted);
+  background: var(--bg-alt);
+}
 
 /* Clicker +/- inputs: plain numeric entry, no up/down spinner. */
 .no-spinner::-webkit-outer-spin-button,

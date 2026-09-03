@@ -157,12 +157,9 @@ function saveEval(playerId: string, category: string, value: number) {
       🔒 This contest is locked - go to the Judges page to unlock it before any scores can change.
     </p>
 
-    <div v-if="saveState !== 'idle'" class="save-status-bar">
-      <span
-        class="save-status"
-        :class="saveState === 'saved' ? 'save-status--saved' : 'save-status--pending'"
-      >
-        {{ saveState === 'saved' ? 'All changes saved' : 'Saving…' }}
+    <div class="save-status-bar">
+      <span class="save-status" :class="`save-status--${saveState === 'saving' ? 'pending' : saveState === 'saved' ? 'saved' : 'idle'}`">
+        {{ saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'All changes saved' : 'Ready' }}
       </span>
     </div>
 
