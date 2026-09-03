@@ -12,14 +12,37 @@ const contest = ref<Contest | null>(null)
 const players = ref<Player[]>([])
 const assignments = ref<JudgeAssignment[]>([])
 const rawScores = ref<PlayerRawScores[]>([])
-const saving = ref<Record<string, boolean>>({})
-// Per-field save status: 'saving' (red, in flight or failed) vs 'saved'
-// (green, last write confirmed). Keyed by section:playerId:field so each
-// input shows its own status independently.
-type SaveState = 'saving' | 'saved'
-const saveStatus = ref<Record<string, SaveState>>({})
+const DEFAULT_EVAL_SCORE = 5
+// One page-wide save indicator rather than one per field: 'saving' while
+// any edit is debouncing or in flight, 'saved' once everything settles.
+type SaveState = 'idle' | 'saving' | 'saved'
+const saveState = ref<SaveState>('idle')
+
+// Debounce each field independently (keyed by section:playerId:field) so
+// rapid clicks on a spinner only trigger one save, DEBOUNCE_MS after the
+// user stops clicking - not one request per click.
+const DEBOUNCE_MS = 2000
+const pendingTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+let activeOps = 0
 function statusKey(section: string, playerId: string, field: string): string {
   return `${section}:${playerId}:${field}`
+}
+function debounceSave(key: string, fn: () => Promise<void>) {
+  if (pendingTimers[key]) {
+    clearTimeout(pendingTimers[key])
+  } else {
+    activeOps++
+  }
+  saveState.value = 'saving'
+  pendingTimers[key] = setTimeout(async () => {
+    delete pendingTimers[key]
+    try {
+      await fn()
+    } finally {
+      activeOps--
+      if (activeOps === 0) saveState.value = 'saved'
+    }
+  }, DEBOUNCE_MS)
 }
 
 const division = computed(() => contest.value?.divisions.find((d) => d.id === props.divisionId))
@@ -65,54 +88,39 @@ function rawFor(playerId: string): PlayerRawScores | undefined {
   return rawScores.value.find((r) => r.playerId === playerId)
 }
 
-async function saveClicker(playerId: string, field: 'plus' | 'minus', value: number) {
+function saveClicker(playerId: string, field: 'plus' | 'minus', value: number) {
   if (!myClickerAssignment.value || inputsDisabled.value) return
-  const slot = myClickerAssignment.value.slot
-  const existing = rawFor(playerId)?.clickers[slot] ?? { plus: 0, minus: 0 }
-  const next = { ...existing, [field]: value }
   const key = statusKey('clicker', playerId, field)
-  saving.value[playerId] = true
-  saveStatus.value[key] = 'saving'
-  try {
+  debounceSave(key, async () => {
+    const slot = myClickerAssignment.value!.slot
+    const existing = rawFor(playerId)?.clickers[slot] ?? { plus: 0, minus: 0 }
+    const next = { ...existing, [field]: value }
     await api.submitClickerScore(props.divisionId, props.stage, playerId, slot, next)
     await load()
-    saveStatus.value[key] = 'saved'
-  } finally {
-    saving.value[playerId] = false
-  }
+  })
 }
 
-async function saveDeduction(playerId: string, field: 'stop' | 'discard' | 'cut', value: number) {
+function saveDeduction(playerId: string, field: 'stop' | 'discard' | 'cut', value: number) {
   if (inputsDisabled.value || !canEditDeductions.value) return
-  const existing = rawFor(playerId)?.deductions ?? { stop: 0, discard: 0, cut: 0 }
-  const next = { ...existing, [field]: value }
   const key = statusKey('deduction', playerId, field)
-  saving.value[playerId] = true
-  saveStatus.value[key] = 'saving'
-  try {
+  debounceSave(key, async () => {
+    const existing = rawFor(playerId)?.deductions ?? { stop: 0, discard: 0, cut: 0 }
+    const next = { ...existing, [field]: value }
     await api.submitDeductions(props.divisionId, props.stage, playerId, next)
     await load()
-    saveStatus.value[key] = 'saved'
-  } finally {
-    saving.value[playerId] = false
-  }
+  })
 }
 
-async function saveEval(playerId: string, category: string, value: number) {
+function saveEval(playerId: string, category: string, value: number) {
   if (!myEvalAssignment.value || inputsDisabled.value) return
-  const slot = myEvalAssignment.value.slot
-  const existing = rawFor(playerId)?.evals[slot] ?? {}
-  const next = { ...existing, [category]: value }
   const key = statusKey('eval', playerId, category)
-  saving.value[playerId] = true
-  saveStatus.value[key] = 'saving'
-  try {
+  debounceSave(key, async () => {
+    const slot = myEvalAssignment.value!.slot
+    const existing = rawFor(playerId)?.evals[slot] ?? {}
+    const next = { ...existing, [category]: value }
     await api.submitEvalScore(props.divisionId, props.stage, playerId, slot, next)
     await load()
-    saveStatus.value[key] = 'saved'
-  } finally {
-    saving.value[playerId] = false
-  }
+  })
 }
 </script>
 
@@ -129,6 +137,14 @@ async function saveEval(playerId: string, category: string, value: number) {
 
     <p v-if="contest.locked" class="error">
       🔒 This contest is locked - go to the Judges page to unlock it before any scores can change.
+    </p>
+
+    <p
+      v-if="saveState !== 'idle'"
+      class="save-status"
+      :class="saveState === 'saved' ? 'save-status--saved' : 'save-status--pending'"
+    >
+      {{ saveState === 'saved' ? 'All changes saved' : 'Saving…' }}
     </p>
 
     <p v-if="!myAssignments.length" class="muted">
@@ -153,31 +169,17 @@ async function saveEval(playerId: string, category: string, value: number) {
             <td>{{ p.name }}</td>
             <td>
               <input
-                type="number" min="0" style="width: 70px"
+                type="number" min="0" class="no-spinner" style="width: 70px"
                 :value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.plus ?? 0"
-                @change="saveClicker(p.id, 'plus', +($event.target as HTMLInputElement).value)"
+                @input="saveClicker(p.id, 'plus', +($event.target as HTMLInputElement).value)"
               />
-              <span
-                v-if="saveStatus[statusKey('clicker', p.id, 'plus')]"
-                class="save-status"
-                :class="`save-status--${saveStatus[statusKey('clicker', p.id, 'plus')]}`"
-              >
-                {{ saveStatus[statusKey('clicker', p.id, 'plus')] === 'saved' ? 'Saved' : 'Saving…' }}
-              </span>
             </td>
             <td>
               <input
-                type="number" min="0" style="width: 70px"
+                type="number" min="0" class="no-spinner" style="width: 70px"
                 :value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.minus ?? 0"
-                @change="saveClicker(p.id, 'minus', +($event.target as HTMLInputElement).value)"
+                @input="saveClicker(p.id, 'minus', +($event.target as HTMLInputElement).value)"
               />
-              <span
-                v-if="saveStatus[statusKey('clicker', p.id, 'minus')]"
-                class="save-status"
-                :class="`save-status--${saveStatus[statusKey('clicker', p.id, 'minus')]}`"
-              >
-                {{ saveStatus[statusKey('clicker', p.id, 'minus')] === 'saved' ? 'Saved' : 'Saving…' }}
-              </span>
             </td>
           </tr>
         </tbody>
@@ -203,16 +205,9 @@ async function saveEval(playerId: string, category: string, value: number) {
             <td v-for="cat in categories" :key="cat.name">
               <input
                 type="number" min="0" :max="cat.maxValue" step="1" style="width: 70px"
-                :value="rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? 0"
-                @change="saveEval(p.id, cat.name, +($event.target as HTMLInputElement).value)"
+                :value="rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? DEFAULT_EVAL_SCORE"
+                @input="saveEval(p.id, cat.name, +($event.target as HTMLInputElement).value)"
               />
-              <span
-                v-if="saveStatus[statusKey('eval', p.id, cat.name)]"
-                class="save-status"
-                :class="`save-status--${saveStatus[statusKey('eval', p.id, cat.name)]}`"
-              >
-                {{ saveStatus[statusKey('eval', p.id, cat.name)] === 'saved' ? 'Saved' : 'Saving…' }}
-              </span>
             </td>
           </tr>
         </tbody>
@@ -244,43 +239,22 @@ async function saveEval(playerId: string, category: string, value: number) {
               <input
                 type="number" min="0" style="width: 70px"
                 :value="rawFor(p.id)?.deductions.stop ?? 0"
-                @change="saveDeduction(p.id, 'stop', +($event.target as HTMLInputElement).value)"
+                @input="saveDeduction(p.id, 'stop', +($event.target as HTMLInputElement).value)"
               />
-              <span
-                v-if="saveStatus[statusKey('deduction', p.id, 'stop')]"
-                class="save-status"
-                :class="`save-status--${saveStatus[statusKey('deduction', p.id, 'stop')]}`"
-              >
-                {{ saveStatus[statusKey('deduction', p.id, 'stop')] === 'saved' ? 'Saved' : 'Saving…' }}
-              </span>
             </td>
             <td>
               <input
                 type="number" min="0" style="width: 70px"
                 :value="rawFor(p.id)?.deductions.discard ?? 0"
-                @change="saveDeduction(p.id, 'discard', +($event.target as HTMLInputElement).value)"
+                @input="saveDeduction(p.id, 'discard', +($event.target as HTMLInputElement).value)"
               />
-              <span
-                v-if="saveStatus[statusKey('deduction', p.id, 'discard')]"
-                class="save-status"
-                :class="`save-status--${saveStatus[statusKey('deduction', p.id, 'discard')]}`"
-              >
-                {{ saveStatus[statusKey('deduction', p.id, 'discard')] === 'saved' ? 'Saved' : 'Saving…' }}
-              </span>
             </td>
             <td>
               <input
                 type="number" min="0" style="width: 70px"
                 :value="rawFor(p.id)?.deductions.cut ?? 0"
-                @change="saveDeduction(p.id, 'cut', +($event.target as HTMLInputElement).value)"
+                @input="saveDeduction(p.id, 'cut', +($event.target as HTMLInputElement).value)"
               />
-              <span
-                v-if="saveStatus[statusKey('deduction', p.id, 'cut')]"
-                class="save-status"
-                :class="`save-status--${saveStatus[statusKey('deduction', p.id, 'cut')]}`"
-              >
-                {{ saveStatus[statusKey('deduction', p.id, 'cut')] === 'saved' ? 'Saved' : 'Saving…' }}
-              </span>
             </td>
           </tr>
         </tbody>
