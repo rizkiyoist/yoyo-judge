@@ -36,6 +36,24 @@ Produces `bin/yoyo-judge-linux-amd64` (and `.exe`). The frontend is embedded —
 
 Copy to the server: the binary (`bin/yoyo-judge-linux-amd64`), `cert.pem`/`key.pem` if using file-based TLS, and `env.json` if using that instead of real env vars for Google credentials. Everything else (frontend, config) is embedded or set via env vars. `yoyojudge.db` is created on first run — don't overwrite it on redeploy, it's your real data.
 
+### Copy to the server
+
+No CI — the server has no git access, so this is just two commands run by hand from the repo root after `.\build.ps1`. You'll be prompted for your normal SSH credentials/passphrase each time; nothing here changes how you authenticate.
+
+Binary:
+
+```bash
+scp bin/yoyo-judge-linux-amd64 rizki@103.134.154.210:/home/rizki/yoyojudge/yoyo-judge-linux-amd64
+```
+
+Frontend — fully replaces the docroot's contents (same as deleting and re-pasting by hand):
+
+```bash
+ssh rizki@103.134.154.210 "rm -rf /var/www/html/yoyojudge/*" && scp -r bin/static/. rizki@103.134.154.210:/var/www/html/yoyojudge/
+```
+
+Then SSH in as usual to restart the backend in its screen session — neither command touches `yoyojudge.db`, `env.json`, or `cert.pem`/`key.pem`, since those all live outside both destination paths.
+
 ```bash
 # Required — register these in Google Cloud Console first
 export GOOGLE_CLIENT_ID="..."
