@@ -40,10 +40,10 @@ Copy to the server: the binary (`bin/yoyo-judge-linux-amd64`), `cert.pem`/`key.p
 
 No CI — the server has no git access, so this is just two commands run by hand from the repo root after `.\build.ps1`. You'll be prompted for your normal SSH credentials/passphrase each time; nothing here changes how you authenticate.
 
-Binary:
+Binary — copied to a temp name then renamed into place, since the server refuses to let `scp` overwrite the binary in-place while it's still running (`ETXTBSY`, "text file busy"); `mv` (a rename, not a write) works fine on a running executable:
 
 ```bash
-scp bin/yoyo-judge-linux-amd64 rizki@103.134.154.210:/home/rizki/yoyojudge/yoyo-judge-linux-amd64
+scp bin/yoyo-judge-linux-amd64 rizki@103.134.154.210:/home/rizki/yoyojudge/yoyo-judge-linux-amd64.new && ssh rizki@103.134.154.210 "mv /home/rizki/yoyojudge/yoyo-judge-linux-amd64.new /home/rizki/yoyojudge/yoyo-judge-linux-amd64"
 ```
 
 Frontend — fully replaces the docroot's contents (same as deleting and re-pasting by hand):
