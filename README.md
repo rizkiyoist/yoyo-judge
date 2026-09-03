@@ -40,19 +40,13 @@ Copy to the server: the binary (`bin/yoyo-judge-linux-amd64`), `cert.pem`/`key.p
 
 No CI — the server has no git access, so this is just two commands run by hand from the repo root after `.\build.ps1`. You'll be prompted for your normal SSH credentials/passphrase each time; nothing here changes how you authenticate.
 
-Binary — stop the running process first (overwriting it in place while it's still running fails with `ETXTBSY`, "text file busy"):
+Stop the backend process first (overwriting it in place while it's still running fails with `ETXTBSY`, "text file busy"), then copy both the binary and the frontend (fully replacing the docroot's contents, same as deleting and re-pasting by hand) in one line:
 
 ```bash
-scp bin/yoyo-judge-linux-amd64 rizki@103.134.154.210:/home/rizki/yoyojudge/yoyo-judge-linux-amd64
+scp bin/yoyo-judge-linux-amd64 rizki@103.134.154.210:/home/rizki/yoyojudge/yoyo-judge-linux-amd64 && ssh rizki@103.134.154.210 "rm -rf /var/www/html/yoyojudge/*" && scp -r bin/static/. rizki@103.134.154.210:/var/www/html/yoyojudge/
 ```
 
-Frontend — fully replaces the docroot's contents (same as deleting and re-pasting by hand):
-
-```bash
-ssh rizki@103.134.154.210 "rm -rf /var/www/html/yoyojudge/*" && scp -r bin/static/. rizki@103.134.154.210:/var/www/html/yoyojudge/
-```
-
-Then SSH in as usual to restart the backend in its screen session — neither command touches `yoyojudge.db`, `env.json`, or `cert.pem`/`key.pem`, since those all live outside both destination paths.
+Then SSH in as usual to restart the backend in its screen session — none of this touches `yoyojudge.db`, `env.json`, or `cert.pem`/`key.pem`, since those all live outside both destination paths.
 
 ```bash
 # Required — register these in Google Cloud Console first
