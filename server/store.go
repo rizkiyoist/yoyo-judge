@@ -535,32 +535,83 @@ func (s *Store) inviteJudge(contestID, divisionID string, stage calc.ScoringStag
 	return dbAssignmentToAssignment(a)
 }
 
+// defaultEvalScore mirrors frontend/src/views/Score{Entry,Override}View.vue's
+// DEFAULT_EVAL_SCORE - the value a not-yet-touched eval input displays, and
+// so also what "no real score entered yet" means for that category.
+const defaultEvalScore = 5
+
+// assignmentHasNonDefaultScores reports whether any player's raw score for
+// a's exact division+stage+role+slot has moved off that score type's
+// default (0 for a clicker's plus/minus or a major deduction's counts, 5
+// for an eval category) - i.e. whether this judge has actually entered
+// real scores yet. Used by removeJudgeAssignment to block removing a judge
+// mid-contest, so a slot swap can't silently discard their work.
+func (s *Store) assignmentHasNonDefaultScores(a DBJudgeAssignment) bool {
+	var rows []DBPlayerRawScore
+	s.db.Where("division_id = ? AND stage = ?", a.DivisionID, a.Stage).Find(&rows)
+	for _, row := range rows {
+		switch JudgeRole(a.Role) {
+		case RoleClicker:
+			var clickers map[int]ClickerInput
+			_ = json.Unmarshal([]byte(row.Clickers), &clickers)
+			if c, ok := clickers[a.Slot]; ok && (c.Plus != 0 || c.Minus != 0) {
+				return true
+			}
+		case RoleEvaluator:
+			var evals map[int]map[string]float64
+			_ = json.Unmarshal([]byte(row.Evals), &evals)
+			for _, v := range evals[a.Slot] {
+				if v != defaultEvalScore {
+					return true
+				}
+			}
+		case RoleMajorDeduction:
+			var d MajorDeductions
+			_ = json.Unmarshal([]byte(row.Deductions), &d)
+			if d.Stop != 0 || d.Discard != 0 || d.Cut != 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // removeJudgeAssignment deletes an assignment, scoped to contestID so a
 // contest owner can't delete another contest's assignment by pairing their
-// own (owned) contestId in the URL with someone else's assignmentId.
-// Reports whether a row was actually deleted.
-// removeJudgeAssignment deletes an assignment, scoped to contestID so a
-// contest owner can't delete another contest's assignment by pairing their
-// own (owned) contestId with someone else's assignmentId. If the removed
-// assignment was a clicker or evaluator slot, also removes that same
-// judge's major-deduction assignment for the same division+stage - major
-// deduction is only ever valid as an additional role on top of one of
-// those two, never standalone. Reports whether a row was actually deleted.
-func (s *Store) removeJudgeAssignment(contestID, assignmentID string) bool {
+// own (owned) contestId with someone else's assignmentId. Refuses (409) if
+// this judge has already entered any non-default score for this exact
+// division+stage+role+slot - reset their scores back to default first (see
+// assignmentHasNonDefaultScores) so removal can't silently discard work.
+// If the removed assignment was a clicker or evaluator slot, also removes
+// that same judge's major-deduction assignment for the same
+// division+stage - major deduction is only ever valid as an additional
+// role on top of one of those two, never standalone.
+func (s *Store) removeJudgeAssignment(contestID, assignmentID string) (status int, message string) {
 	var a DBJudgeAssignment
 	if s.db.Where("id = ? AND contest_id = ?", assignmentID, contestID).First(&a).Error != nil {
-		return false
+		return http.StatusNotFound, "judge assignment not found"
+	}
+	if s.assignmentHasNonDefaultScores(a) {
+		return http.StatusConflict, "this judge has already entered scores - reset them to default before removing this judge"
+	}
+	// Also block on the cascaded major-deduction assignment (if any) having
+	// its own non-default scores, so it can't be silently dropped along
+	// with the clicker/evaluator role it rides on.
+	var mdAssignment DBJudgeAssignment
+	hasMD := (a.Role == string(RoleClicker) || a.Role == string(RoleEvaluator)) && s.db.Where(
+		"contest_id = ? AND division_id = ? AND stage = ? AND user_id = ? AND role = ?",
+		contestID, a.DivisionID, a.Stage, a.UserID, string(RoleMajorDeduction),
+	).First(&mdAssignment).Error == nil
+	if hasMD && s.assignmentHasNonDefaultScores(mdAssignment) {
+		return http.StatusConflict, "this judge has already entered major deductions for this division/stage - reset them to default before removing this judge"
 	}
 	if s.db.Delete(&a).RowsAffected == 0 {
-		return false
+		return http.StatusNotFound, "judge assignment not found"
 	}
-	if a.Role == string(RoleClicker) || a.Role == string(RoleEvaluator) {
-		s.db.Where(
-			"contest_id = ? AND division_id = ? AND stage = ? AND user_id = ? AND role = ?",
-			contestID, a.DivisionID, a.Stage, a.UserID, string(RoleMajorDeduction),
-		).Delete(&DBJudgeAssignment{})
+	if hasMD {
+		s.db.Delete(&mdAssignment)
 	}
-	return true
+	return 0, ""
 }
 
 // --- players ---

@@ -358,8 +358,8 @@ func (s *Store) handleRemoveJudgeAssignment(w http.ResponseWriter, r *http.Reque
 		writeError(w, status, msg)
 		return
 	}
-	if !s.removeJudgeAssignment(contestID, mux.Vars(r)["assignmentId"]) {
-		writeError(w, http.StatusNotFound, "judge assignment not found")
+	if status, msg := s.removeJudgeAssignment(contestID, mux.Vars(r)["assignmentId"]); status != 0 {
+		writeError(w, status, msg)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

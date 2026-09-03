@@ -53,6 +53,32 @@ function emptyDeductions(): MajorDeductions {
   return { stop: 0, discard: 0, cut: 0 }
 }
 
+// Mirrors the views' ScoreEntryView/ScoreOverrideView DEFAULT_EVAL_SCORE -
+// the value a not-yet-touched eval input displays, and so also what "no
+// real score entered yet" means for that category.
+const DEFAULT_EVAL_SCORE = 5
+
+// Mirrors server/store.go's assignmentHasNonDefaultScores: whether this
+// judge has moved any of their scores off the default for this exact
+// division+stage+role+slot - used to block removeJudgeAssignment so a
+// slot swap can't silently discard real scores.
+function assignmentHasNonDefaultScores(division: DbDivision, a: JudgeAssignment): boolean {
+  const rows = division.scores[a.stage] ?? []
+  for (const raw of rows) {
+    if (a.role === 'clicker') {
+      const c = raw.clickers[a.slot]
+      if (c && (c.plus !== 0 || c.minus !== 0)) return true
+    } else if (a.role === 'evaluator') {
+      const scores = raw.evals[a.slot]
+      if (scores && Object.values(scores).some((v) => v !== DEFAULT_EVAL_SCORE)) return true
+    } else if (a.role === 'major_deduction') {
+      const d = raw.deductions
+      if (d.stop !== 0 || d.discard !== 0 || d.cut !== 0) return true
+    }
+  }
+  return false
+}
+
 function emptyRawScores(playerId: string): PlayerRawScores {
   return { playerId, clickers: {}, deductions: emptyDeductions(), evals: {} }
 }
@@ -532,15 +558,27 @@ export function createMockApi(): ScoringApi {
       assertContestWritable(contest, db.sessionUserId)
       for (const division of contest.divisions) {
         const removed = division.assignments.find((a) => a.id === assignmentId)
-        division.assignments = division.assignments.filter((a) => a.id !== assignmentId)
+        if (!removed) continue
+        if (assignmentHasNonDefaultScores(division, removed)) {
+          throw new Error('this judge has already entered scores - reset them to default before removing this judge')
+        }
         // Major deduction is only ever an additional role on top of
-        // clicker/evaluator - drop it too once the judge loses that base role.
-        if (removed && (removed.role === 'clicker' || removed.role === 'evaluator')) {
-          division.assignments = division.assignments.filter(
-            (a) =>
-              !(a.stage === removed.stage && a.userId === removed.userId && a.role === 'major_deduction'),
+        // clicker/evaluator - drop it too once the judge loses that base
+        // role, but only if it too has no real scores entered.
+        const mdAssignment =
+          removed.role === 'clicker' || removed.role === 'evaluator'
+            ? division.assignments.find(
+                (a) => a.stage === removed.stage && a.userId === removed.userId && a.role === 'major_deduction',
+              )
+            : undefined
+        if (mdAssignment && assignmentHasNonDefaultScores(division, mdAssignment)) {
+          throw new Error(
+            'this judge has already entered major deductions for this division/stage - reset them to default before removing this judge',
           )
         }
+        division.assignments = division.assignments.filter(
+          (a) => a.id !== assignmentId && a.id !== mdAssignment?.id,
+        )
       }
       saveDb(db)
       return delay(undefined)

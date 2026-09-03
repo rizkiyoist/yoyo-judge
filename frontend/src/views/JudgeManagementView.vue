@@ -133,9 +133,20 @@ async function invite(identity: { userId: string } | { email: string }) {
   await load()
 }
 
+const removing = ref<Record<string, boolean>>({})
+const removeError = ref<Record<string, string>>({})
+
 async function remove(assignment: JudgeAssignment) {
-  await api.removeJudgeAssignment(props.contestId, assignment.id)
-  await load()
+  removing.value[assignment.id] = true
+  removeError.value[assignment.id] = ''
+  try {
+    await api.removeJudgeAssignment(props.contestId, assignment.id)
+    await load()
+  } catch (e) {
+    removeError.value[assignment.id] = e instanceof Error ? e.message : 'Failed to remove judge'
+  } finally {
+    removing.value[assignment.id] = false
+  }
 }
 
 function userLabel(userId: string): string {
@@ -334,8 +345,13 @@ async function assignMd() {
                   <strong v-if="isOwnerUserId(a.userId)">{{ userLabel(a.userId) }}</strong>
                   <template v-else>{{ userLabel(a.userId) }}</template>
                   <span v-if="isHeadJudgeUserId(a.userId)" class="badge">Head Judge</span>
+                  <div v-if="removeError[a.id]" class="error" style="font-size: 0.85em">{{ removeError[a.id] }}</div>
                 </td>
-                <td v-if="canManage"><button class="danger" :disabled="contest.locked" @click="remove(a)">Remove</button></td>
+                <td v-if="canManage">
+                  <button class="danger" :disabled="contest.locked || removing[a.id]" @click="remove(a)">
+                    {{ removing[a.id] ? 'Removing…' : 'Remove' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -359,8 +375,13 @@ async function assignMd() {
                   <strong v-if="isOwnerUserId(a.userId)">{{ userLabel(a.userId) }}</strong>
                   <template v-else>{{ userLabel(a.userId) }}</template>
                   <span v-if="isHeadJudgeUserId(a.userId)" class="badge">Head Judge</span>
+                  <div v-if="removeError[a.id]" class="error" style="font-size: 0.85em">{{ removeError[a.id] }}</div>
                 </td>
-                <td v-if="canManage"><button class="danger" :disabled="contest.locked" @click="remove(a)">Remove</button></td>
+                <td v-if="canManage">
+                  <button class="danger" :disabled="contest.locked || removing[a.id]" @click="remove(a)">
+                    {{ removing[a.id] ? 'Removing…' : 'Remove' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -386,8 +407,15 @@ async function assignMd() {
                 <strong v-if="isOwnerUserId(mdAssignment.userId)">{{ userLabel(mdAssignment.userId) }}</strong>
                 <template v-else>{{ userLabel(mdAssignment.userId) }}</template>
                 <span v-if="isHeadJudgeUserId(mdAssignment.userId)" class="badge">Head Judge</span>
+                <div v-if="removeError[mdAssignment.id]" class="error" style="font-size: 0.85em">
+                  {{ removeError[mdAssignment.id] }}
+                </div>
               </td>
-              <td v-if="canManage"><button class="danger" :disabled="contest.locked" @click="remove(mdAssignment)">Remove</button></td>
+              <td v-if="canManage">
+                <button class="danger" :disabled="contest.locked || removing[mdAssignment.id]" @click="remove(mdAssignment)">
+                  {{ removing[mdAssignment.id] ? 'Removing…' : 'Remove' }}
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
