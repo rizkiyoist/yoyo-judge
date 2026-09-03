@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
+import ScoreNumberInput from '../components/ScoreNumberInput.vue'
 import { finalCategories, prelimCategories } from '../lib/scoring'
 import { useAuthStore } from '../stores/auth'
 import type { Contest, JudgeAssignment, Player, PlayerRawScores, ScoringStage } from '../types'
@@ -139,13 +140,14 @@ function saveEval(playerId: string, category: string, value: number) {
       🔒 This contest is locked - go to the Judges page to unlock it before any scores can change.
     </p>
 
-    <p
-      v-if="saveState !== 'idle'"
-      class="save-status"
-      :class="saveState === 'saved' ? 'save-status--saved' : 'save-status--pending'"
-    >
-      {{ saveState === 'saved' ? 'All changes saved' : 'Saving…' }}
-    </p>
+    <div v-if="saveState !== 'idle'" class="save-status-bar">
+      <span
+        class="save-status"
+        :class="saveState === 'saved' ? 'save-status--saved' : 'save-status--pending'"
+      >
+        {{ saveState === 'saved' ? 'All changes saved' : 'Saving…' }}
+      </span>
+    </div>
 
     <p v-if="!myAssignments.length" class="muted">
       You aren't assigned as a judge for this division/stage. Ask the head judge to invite you from the Judges page.
@@ -168,17 +170,19 @@ function saveEval(playerId: string, category: string, value: number) {
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
             <td>
-              <input
-                type="number" min="0" class="no-spinner" style="width: 70px"
-                :value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.plus ?? 0"
-                @input="saveClicker(p.id, 'plus', +($event.target as HTMLInputElement).value)"
+              <ScoreNumberInput
+                :min="0"
+                :model-value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.plus ?? 0"
+                :disabled="inputsDisabled"
+                @update:model-value="saveClicker(p.id, 'plus', $event)"
               />
             </td>
             <td>
-              <input
-                type="number" min="0" class="no-spinner" style="width: 70px"
-                :value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.minus ?? 0"
-                @input="saveClicker(p.id, 'minus', +($event.target as HTMLInputElement).value)"
+              <ScoreNumberInput
+                :min="0"
+                :model-value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.minus ?? 0"
+                :disabled="inputsDisabled"
+                @update:model-value="saveClicker(p.id, 'minus', $event)"
               />
             </td>
           </tr>
@@ -203,10 +207,12 @@ function saveEval(playerId: string, category: string, value: number) {
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
             <td v-for="cat in categories" :key="cat.name">
-              <input
-                type="number" min="0" :max="cat.maxValue" step="1" style="width: 70px"
-                :value="rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? DEFAULT_EVAL_SCORE"
-                @input="saveEval(p.id, cat.name, +($event.target as HTMLInputElement).value)"
+              <ScoreNumberInput
+                :min="0"
+                :max="cat.maxValue"
+                :model-value="rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? DEFAULT_EVAL_SCORE"
+                :disabled="inputsDisabled"
+                @update:model-value="saveEval(p.id, cat.name, $event)"
               />
             </td>
           </tr>
@@ -236,24 +242,27 @@ function saveEval(playerId: string, category: string, value: number) {
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
             <td>
-              <input
-                type="number" min="0" style="width: 70px"
-                :value="rawFor(p.id)?.deductions.stop ?? 0"
-                @input="saveDeduction(p.id, 'stop', +($event.target as HTMLInputElement).value)"
+              <ScoreNumberInput
+                :min="0"
+                :model-value="rawFor(p.id)?.deductions.stop ?? 0"
+                :disabled="inputsDisabled"
+                @update:model-value="saveDeduction(p.id, 'stop', $event)"
               />
             </td>
             <td>
-              <input
-                type="number" min="0" style="width: 70px"
-                :value="rawFor(p.id)?.deductions.discard ?? 0"
-                @input="saveDeduction(p.id, 'discard', +($event.target as HTMLInputElement).value)"
+              <ScoreNumberInput
+                :min="0"
+                :model-value="rawFor(p.id)?.deductions.discard ?? 0"
+                :disabled="inputsDisabled"
+                @update:model-value="saveDeduction(p.id, 'discard', $event)"
               />
             </td>
             <td>
-              <input
-                type="number" min="0" style="width: 70px"
-                :value="rawFor(p.id)?.deductions.cut ?? 0"
-                @input="saveDeduction(p.id, 'cut', +($event.target as HTMLInputElement).value)"
+              <ScoreNumberInput
+                :min="0"
+                :model-value="rawFor(p.id)?.deductions.cut ?? 0"
+                :disabled="inputsDisabled"
+                @update:model-value="saveDeduction(p.id, 'cut', $event)"
               />
             </td>
           </tr>
