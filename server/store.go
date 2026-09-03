@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -31,10 +33,31 @@ func newID(prefix string) string {
 // All writes go through GORM; SQLite's WAL mode handles concurrent reads.
 type Store struct {
 	db *gorm.DB
+	// superAdmins is the lowercased SUPERADMIN_EMAILS allowlist (populated
+	// from env.json's "superadmin" list by loadEnvJSON) - see isSuperAdmin.
+	superAdmins map[string]bool
 }
 
 func NewStore(db *gorm.DB) *Store {
-	return &Store{db: db}
+	return &Store{db: db, superAdmins: loadSuperAdmins()}
+}
+
+func loadSuperAdmins() map[string]bool {
+	set := map[string]bool{}
+	for _, email := range strings.Split(os.Getenv("SUPERADMIN_EMAILS"), ",") {
+		if email = strings.ToLower(strings.TrimSpace(email)); email != "" {
+			set[email] = true
+		}
+	}
+	return set
+}
+
+// isSuperAdmin reports whether email is in env.json's/SUPERADMIN_EMAILS'
+// allowlist. Superadmins may edit any contest's name/year and hide/show
+// contests, regardless of ownership - see handleUpdateContest and
+// handleSetContestHidden.
+func (s *Store) isSuperAdmin(email string) bool {
+	return s.superAdmins[strings.ToLower(email)]
 }
 
 // --- users ---
@@ -44,7 +67,7 @@ func (s *Store) findUserByEmail(email string) (User, bool) {
 	if s.db.Where("email = ?", email).First(&u).Error != nil {
 		return User{}, false
 	}
-	return dbUserToUser(u), true
+	return s.dbUserToUser(u), true
 }
 
 func (s *Store) findUserByID(id string) (User, bool) {
@@ -52,7 +75,7 @@ func (s *Store) findUserByID(id string) (User, bool) {
 	if s.db.First(&u, "id = ?", id).Error != nil {
 		return User{}, false
 	}
-	return dbUserToUser(u), true
+	return s.dbUserToUser(u), true
 }
 
 func (s *Store) findUserByGoogleID(googleID string) (User, bool) {
@@ -63,7 +86,7 @@ func (s *Store) findUserByGoogleID(googleID string) (User, bool) {
 	if s.db.Where("google_id = ?", googleID).First(&u).Error != nil {
 		return User{}, false
 	}
-	return dbUserToUser(u), true
+	return s.dbUserToUser(u), true
 }
 
 // findOrCreateUserByGoogle looks up a user by Google ID, falls back to email
@@ -93,7 +116,7 @@ func (s *Store) findOrCreateUserByGoogle(googleID, email, firstName, lastName st
 				existing.FirstName, existing.LastName = firstName, lastName
 			}
 		}
-		return dbUserToUser(existing), nil
+		return s.dbUserToUser(existing), nil
 	}
 	u := DBUser{
 		ID: newID("u"), FirstName: firstName, LastName: lastName,
@@ -102,7 +125,7 @@ func (s *Store) findOrCreateUserByGoogle(googleID, email, firstName, lastName st
 	if err := s.db.Create(&u).Error; err != nil {
 		return User{}, err
 	}
-	return dbUserToUser(u), nil
+	return s.dbUserToUser(u), nil
 }
 
 // findOrCreateUserByEmail is used when inviting a judge by email who hasn't
@@ -113,13 +136,13 @@ func (s *Store) findOrCreateUserByGoogle(googleID, email, firstName, lastName st
 func (s *Store) findOrCreateUserByEmail(email string) (User, error) {
 	var existing DBUser
 	if s.db.Where("LOWER(email) = LOWER(?)", email).First(&existing).Error == nil {
-		return dbUserToUser(existing), nil
+		return s.dbUserToUser(existing), nil
 	}
 	u := DBUser{ID: newID("u"), Email: email}
 	if err := s.db.Create(&u).Error; err != nil {
 		return User{}, err
 	}
-	return dbUserToUser(u), nil
+	return s.dbUserToUser(u), nil
 }
 
 func (s *Store) searchUsers(q string) []User {
@@ -134,7 +157,7 @@ func (s *Store) searchUsers(q string) []User {
 	).Find(&rows)
 	result := make([]User, len(rows))
 	for i, u := range rows {
-		result[i] = dbUserToUser(u)
+		result[i] = s.dbUserToUser(u)
 	}
 	return result
 }
@@ -150,13 +173,16 @@ func (s *Store) usersByIDs(ids []string) []User {
 	s.db.Where("id IN ?", ids).Find(&rows)
 	result := make([]User, len(rows))
 	for i, u := range rows {
-		result[i] = dbUserToUser(u)
+		result[i] = s.dbUserToUser(u)
 	}
 	return result
 }
 
-func dbUserToUser(u DBUser) User {
-	return User{ID: u.ID, FirstName: u.FirstName, LastName: u.LastName, Email: u.Email}
+func (s *Store) dbUserToUser(u DBUser) User {
+	return User{
+		ID: u.ID, FirstName: u.FirstName, LastName: u.LastName, Email: u.Email,
+		IsSuperAdmin: s.isSuperAdmin(u.Email),
+	}
 }
 
 // --- sessions ---
@@ -191,9 +217,16 @@ func (s *Store) deleteSession(token string) {
 // not just the ones a contest has invited) can see every contest, though
 // only its owner and its invited judges can change its scores (enforced
 // separately, see isContestOwner/isAssignedSlot/isAssignedRole below).
-func (s *Store) listAllContests() []Contest {
+// includeHidden is true only for a superadmin (see handleListContests) - a
+// hidden contest stays completely invisible to everyone else, but a
+// superadmin needs to see it in the list to be able to un-hide it again.
+func (s *Store) listAllContests(includeHidden bool) []Contest {
 	var all []DBContest
-	s.db.Where("hidden = ?", false).Order("created_at").Find(&all)
+	q := s.db.Order("created_at")
+	if !includeHidden {
+		q = q.Where("hidden = ?", false)
+	}
+	q.Find(&all)
 	result := make([]Contest, len(all))
 	for i, c := range all {
 		result[i] = s.dbContestToContest(c)
@@ -218,7 +251,7 @@ func (s *Store) dbContestToContest(c DBContest) Contest {
 	return Contest{
 		ID: c.ID, Name: c.Name, Year: c.Year,
 		OwnerUserID: c.OwnerUserID, HeadJudgeUserID: headJudgeUserID, Locked: c.Locked,
-		Divisions: divisions,
+		Hidden: c.Hidden, Divisions: divisions,
 	}
 }
 
@@ -287,6 +320,32 @@ func (s *Store) isContestLocked(contestID string) bool {
 // writes the flag.
 func (s *Store) setContestLocked(contestID string, locked bool) (Contest, bool) {
 	res := s.db.Model(&DBContest{}).Where("id = ?", contestID).Update("locked", locked)
+	if res.RowsAffected == 0 {
+		return Contest{}, false
+	}
+	c, ok := s.getContest(contestID)
+	return c, ok
+}
+
+// updateContestDetails corrects a contest's name/year after creation. Only
+// the caller (handleUpdateContest) restricts this to superadmins - a
+// normal owner/head judge can't rename a contest once created.
+func (s *Store) updateContestDetails(contestID, name string, year int) (Contest, bool) {
+	res := s.db.Model(&DBContest{}).Where("id = ?", contestID).Updates(map[string]any{
+		"name": name, "year": year,
+	})
+	if res.RowsAffected == 0 {
+		return Contest{}, false
+	}
+	c, ok := s.getContest(contestID)
+	return c, ok
+}
+
+// setContestHidden toggles whether a contest is excluded from a
+// non-superadmin's listAllContests(). Only the caller
+// (handleSetContestHidden) restricts this to superadmins.
+func (s *Store) setContestHidden(contestID string, hidden bool) (Contest, bool) {
+	res := s.db.Model(&DBContest{}).Where("id = ?", contestID).Update("hidden", hidden)
 	if res.RowsAffected == 0 {
 		return Contest{}, false
 	}

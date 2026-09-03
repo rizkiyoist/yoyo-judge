@@ -17,6 +17,10 @@ type User struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
 	Email     string `json:"email"`
+	// IsSuperAdmin is computed from env.json's/SUPERADMIN_EMAILS' allowlist
+	// (see Store.isSuperAdmin), never stored — a superadmin may edit any
+	// contest's name/year and hide/show contests regardless of ownership.
+	IsSuperAdmin bool `json:"isSuperAdmin"`
 }
 
 // Division mirrors frontend/src/types.ts's Division.
@@ -35,7 +39,12 @@ type Contest struct {
 	OwnerUserID     string     `json:"ownerUserId"`
 	HeadJudgeUserID string     `json:"headJudgeUserId"`
 	Locked          bool       `json:"locked"`
-	Divisions       []Division `json:"divisions"`
+	// Hidden excludes this contest from a non-superadmin's contest list
+	// (see Store.listAllContests) - only a superadmin can toggle it, and
+	// only a superadmin's listing ever includes a hidden contest, so they
+	// can find it again to un-hide it.
+	Hidden    bool       `json:"hidden"`
+	Divisions []Division `json:"divisions"`
 }
 
 // JudgeRole mirrors frontend/src/types.ts's JudgeRole.

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 )
 
 // envJSONConfig mirrors env.json's shape. Only the Google OAuth
@@ -21,6 +22,10 @@ type envJSONConfig struct {
 		ClientSecret string `json:"client_secret"`
 		RedirectURL  string `json:"redirect_url"`
 	} `json:"google"`
+	// Superadmin lists the emails granted superadmin powers (editing any
+	// contest's name/year, and hiding/showing contests) — see
+	// server.Store's isSuperAdmin.
+	Superadmin []string `json:"superadmin"`
 }
 
 // loadEnvJSON reads env.json (if present, next to the binary/working dir)
@@ -44,6 +49,7 @@ func loadEnvJSON() {
 	setEnvIfUnset("GOOGLE_CLIENT_ID", cfg.Google.ClientID)
 	setEnvIfUnset("GOOGLE_CLIENT_SECRET", cfg.Google.ClientSecret)
 	setEnvIfUnset("GOOGLE_REDIRECT_URL", cfg.Google.RedirectURL)
+	setEnvIfUnset("SUPERADMIN_EMAILS", strings.Join(cfg.Superadmin, ","))
 }
 
 func setEnvIfUnset(key, value string) {

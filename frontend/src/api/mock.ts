@@ -29,6 +29,7 @@ interface DbContest {
   ownerUserId: string
   headJudgeUserId: string
   locked: boolean
+  hidden: boolean
   divisions: DbDivision[]
 }
 
@@ -74,18 +75,30 @@ const EVAL_JUDGE_NAMES: [string, string][] = [
 ]
 
 function seedDb(): Db {
-  const headJudge: User = { id: uid('u'), firstName: 'Galih', lastName: 'Kurniawan', email: 'galih@example.com' }
+  // The mock has no real superadmin allowlist (env.json is a backend-only
+  // concept) - the demo head judge just always gets the flag so the
+  // superadmin-only UI (edit contest details, hide/show) is exercisable
+  // offline.
+  const headJudge: User = {
+    id: uid('u'),
+    firstName: 'Galih',
+    lastName: 'Kurniawan',
+    email: 'galih@example.com',
+    isSuperAdmin: true,
+  }
   const clickerJudges: User[] = CLICKER_JUDGE_NAMES.map(([firstName, lastName], i) => ({
     id: uid('u'),
     firstName,
     lastName,
     email: `${firstName.toLowerCase()}.a${i + 1}@example.com`,
+    isSuperAdmin: false,
   }))
   const evalJudges: User[] = EVAL_JUDGE_NAMES.map(([firstName, lastName], i) => ({
     id: uid('u'),
     firstName,
     lastName,
     email: `${firstName.toLowerCase()}.b${i + 1}@example.com`,
+    isSuperAdmin: false,
   }))
   const users = [headJudge, ...clickerJudges, ...evalJudges]
 
@@ -187,6 +200,7 @@ function seedDb(): Db {
     ownerUserId: headJudge.id,
     headJudgeUserId: headJudge.id,
     locked: false,
+    hidden: false,
     divisions: [division],
   }
 
@@ -221,6 +235,7 @@ function toContest(dc: DbContest): Contest {
     ownerUserId: dc.ownerUserId,
     headJudgeUserId: dc.headJudgeUserId || dc.ownerUserId,
     locked: dc.locked,
+    hidden: dc.hidden,
     divisions: dc.divisions.map((d) => ({
       id: d.id,
       contestId: d.contestId,
@@ -364,7 +379,9 @@ export function createMockApi(): ScoringApi {
     },
 
     async listContests() {
-      return delay(db.contests.map(toContest))
+      const user = db.users.find((u) => u.id === db.sessionUserId) ?? null
+      const visible = user?.isSuperAdmin ? db.contests : db.contests.filter((c) => !c.hidden)
+      return delay(visible.map(toContest))
     },
 
     async getContest(contestId) {
@@ -380,9 +397,29 @@ export function createMockApi(): ScoringApi {
         ownerUserId,
         headJudgeUserId: ownerUserId,
         locked: false,
+        hidden: false,
         divisions: [],
       }
       db.contests.push(contest)
+      saveDb(db)
+      return delay(toContest(contest))
+    },
+
+    // Superadmin-only on the real backend - the mock has no allowlist to
+    // enforce against, so it just allows it.
+    async updateContest(contestId, name, year) {
+      const contest = db.contests.find((c) => c.id === contestId)
+      if (!contest) throw new Error('contest not found')
+      contest.name = name
+      contest.year = year
+      saveDb(db)
+      return delay(toContest(contest))
+    },
+
+    async setContestHidden(contestId, hidden) {
+      const contest = db.contests.find((c) => c.id === contestId)
+      if (!contest) throw new Error('contest not found')
+      contest.hidden = hidden
       saveDb(db)
       return delay(toContest(contest))
     },
@@ -475,7 +512,7 @@ export function createMockApi(): ScoringApi {
         } else {
           // Placeholder account, no name yet - this is what makes the
           // invite already visible the first time this email actually logs in.
-          const placeholder: User = { id: uid('u'), firstName: '', lastName: '', email }
+          const placeholder: User = { id: uid('u'), firstName: '', lastName: '', email, isSuperAdmin: false }
           db.users.push(placeholder)
           userId = placeholder.id
         }

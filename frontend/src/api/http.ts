@@ -103,6 +103,20 @@ export function createHttpApi(): ScoringApi {
       return request<Contest>('/contests', { method: 'POST', body: JSON.stringify({ name, year }) })
     },
 
+    async updateContest(contestId, name, year) {
+      return request<Contest>(`/contests/${contestId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name, year }),
+      })
+    },
+
+    async setContestHidden(contestId, hidden) {
+      return request<Contest>(`/contests/${contestId}/hidden`, {
+        method: 'PATCH',
+        body: JSON.stringify({ hidden }),
+      })
+    },
+
     async addDivision(contestId, name, stages: ScoringStage[]) {
       return request<Division>(`/contests/${contestId}/divisions`, {
         method: 'POST',

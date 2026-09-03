@@ -30,6 +30,11 @@ export interface ScoringApi {
   listContests(): Promise<Contest[]>
   getContest(contestId: string): Promise<Contest | null>
   createContest(name: string, year: number, ownerUserId: string): Promise<Contest>
+  // Superadmin-only: correct a contest's name/year after creation.
+  updateContest(contestId: string, name: string, year: number): Promise<Contest>
+  // Superadmin-only: hide/show a contest from the general contest list.
+  // Hidden contests stay visible (and can be un-hidden) to superadmins only.
+  setContestHidden(contestId: string, hidden: boolean): Promise<Contest>
   addDivision(contestId: string, name: string, stages: ScoringStage[]): Promise<Division>
   updateDivisionStages(contestId: string, divisionId: string, stages: ScoringStage[]): Promise<Division>
   // Owner or head judge only. Refuses (throws) if the division still has

@@ -56,6 +56,8 @@ func Mount(router *mux.Router, store *Store, basePath string) {
 	api.HandleFunc("/contests", store.requireAuth(store.handleListContests)).Methods(http.MethodGet)
 	api.HandleFunc("/contests", store.requireAuth(store.handleCreateContest)).Methods(http.MethodPost)
 	api.HandleFunc("/contests/{contestId}", store.requireAuth(store.handleGetContest)).Methods(http.MethodGet)
+	api.HandleFunc("/contests/{contestId}", store.requireAuth(store.handleUpdateContest)).Methods(http.MethodPatch)
+	api.HandleFunc("/contests/{contestId}/hidden", store.requireAuth(store.handleSetContestHidden)).Methods(http.MethodPatch)
 	api.HandleFunc("/contests/{contestId}/divisions", store.requireAuth(store.handleAddDivision)).Methods(http.MethodPost)
 	api.HandleFunc("/contests/{contestId}/divisions/{divisionId}", store.requireAuth(store.handleUpdateDivisionStages)).Methods(http.MethodPatch)
 	api.HandleFunc("/contests/{contestId}/divisions/{divisionId}", store.requireAuth(store.handleDeleteDivision)).Methods(http.MethodDelete)
@@ -126,7 +128,7 @@ func (s *Store) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
 // --- contests ---
 
 func (s *Store) handleListContests(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, nonNil(s.listAllContests()))
+	writeJSON(w, http.StatusOK, nonNil(s.listAllContests(currentUser(r).IsSuperAdmin)))
 }
 
 func (s *Store) handleCreateContest(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +150,53 @@ func (s *Store) handleGetContest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, c)
+}
+
+// handleUpdateContest lets a superadmin (see env.json's "superadmin" list)
+// correct a contest's name/year after creation — a normal owner/head judge
+// cannot rename a contest once created.
+func (s *Store) handleUpdateContest(w http.ResponseWriter, r *http.Request) {
+	if !currentUser(r).IsSuperAdmin {
+		writeError(w, http.StatusForbidden, "only a superadmin can edit contest details")
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+		Year int    `json:"year"`
+	}
+	if !readJSON(r, &body) {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	contest, ok := s.updateContestDetails(mux.Vars(r)["contestId"], body.Name, body.Year)
+	if !ok {
+		writeError(w, http.StatusNotFound, "contest not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, contest)
+}
+
+// handleSetContestHidden lets a superadmin hide/show a contest from the
+// general contest list — a hidden contest stays visible (so it can be
+// un-hidden again) only to superadmins, see listAllContests.
+func (s *Store) handleSetContestHidden(w http.ResponseWriter, r *http.Request) {
+	if !currentUser(r).IsSuperAdmin {
+		writeError(w, http.StatusForbidden, "only a superadmin can hide or show contests")
+		return
+	}
+	var body struct {
+		Hidden bool `json:"hidden"`
+	}
+	if !readJSON(r, &body) {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	contest, ok := s.setContestHidden(mux.Vars(r)["contestId"], body.Hidden)
+	if !ok {
+		writeError(w, http.StatusNotFound, "contest not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, contest)
 }
 
 func (s *Store) handleAddDivision(w http.ResponseWriter, r *http.Request) {

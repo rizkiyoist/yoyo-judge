@@ -11,6 +11,10 @@ export interface User {
   firstName: string
   lastName: string
   email: string
+  // Computed server-side from env.json's/SUPERADMIN_EMAILS' allowlist - a
+  // superadmin may edit any contest's name/year and hide/show contests,
+  // regardless of ownership.
+  isSuperAdmin: boolean
 }
 
 export interface Division {
@@ -33,6 +37,10 @@ export interface Contest {
   // against writes, including by the head judge - only unlocking is
   // exempt. Toggled by the current head judge only.
   locked: boolean
+  // Excludes this contest from a non-superadmin's contest list. Only a
+  // superadmin can toggle it, and only a superadmin's listing ever
+  // includes a hidden contest, so they can find it again to un-hide it.
+  hidden: boolean
   divisions: Division[]
 }
 

@@ -111,6 +111,11 @@ function judgesByRole(assignments: JudgeAssignment[] | undefined, role: JudgeAss
 
 const downloading = ref<Record<string, boolean>>({})
 const lockToggling = ref<Record<string, boolean>>({})
+const hidingToggling = ref<Record<string, boolean>>({})
+const editingContestId = ref<string | null>(null)
+const editName = ref('')
+const editYear = ref(new Date().getFullYear())
+const savingEdit = ref(false)
 
 async function toggleLock(contest: Contest) {
   lockToggling.value[contest.id] = true
@@ -119,6 +124,36 @@ async function toggleLock(contest: Contest) {
     await store.fetchContests()
   } finally {
     lockToggling.value[contest.id] = false
+  }
+}
+
+async function toggleHidden(contest: Contest) {
+  hidingToggling.value[contest.id] = true
+  try {
+    await store.setContestHidden(contest.id, !contest.hidden)
+  } finally {
+    hidingToggling.value[contest.id] = false
+  }
+}
+
+function startEditContest(contest: Contest) {
+  editingContestId.value = contest.id
+  editName.value = contest.name
+  editYear.value = contest.year
+}
+
+function cancelEditContest() {
+  editingContestId.value = null
+}
+
+async function saveContestEdit(contest: Contest) {
+  if (!editName.value.trim() || !editYear.value) return
+  savingEdit.value = true
+  try {
+    await store.updateContest(contest.id, editName.value.trim(), editYear.value)
+    editingContestId.value = null
+  } finally {
+    savingEdit.value = false
   }
 }
 
@@ -257,12 +292,29 @@ async function createContest() {
 
   <p v-if="store.loading" class="muted">Loading…</p>
 
-  <div v-for="contest in store.contests" :key="contest.id" class="card">
+  <div
+    v-for="contest in store.contests"
+    :key="contest.id"
+    class="card"
+    :style="contest.hidden ? 'opacity: 0.55' : ''"
+  >
     <div class="row" style="justify-content: space-between; margin-bottom: 16px">
-      <div class="row">
+      <div class="row" v-if="editingContestId !== contest.id">
         <h2 style="margin: 0">{{ contest.name }}</h2>
         <span class="badge-year">{{ contest.year }}</span>
         <span v-if="contest.locked" class="badge" title="Locked by head judge">🔒 Locked</span>
+        <span v-if="contest.hidden" class="badge" title="Hidden from the general contest list - only you (superadmin) can see it">
+          🙈 Hidden
+        </span>
+        <button v-if="auth.user?.isSuperAdmin" @click="startEditContest(contest)">Edit</button>
+      </div>
+      <div class="row" v-else>
+        <input v-model="editName" type="text" placeholder="Contest name" style="width: 220px" />
+        <input v-model.number="editYear" type="number" placeholder="Year" style="width: 100px" />
+        <button class="primary" :disabled="savingEdit" @click="saveContestEdit(contest)">
+          {{ savingEdit ? 'Saving…' : 'Save' }}
+        </button>
+        <button :disabled="savingEdit" @click="cancelEditContest">Cancel</button>
       </div>
       <div class="row">
         <RouterLink :to="{ name: 'contest-edit', params: { contestId: contest.id } }">
@@ -282,6 +334,14 @@ async function createContest() {
           @click="toggleLock(contest)"
         >
           {{ lockToggling[contest.id] ? 'Working…' : contest.locked ? 'Unlock' : 'Lock' }}
+        </button>
+        <button
+          v-if="auth.user?.isSuperAdmin"
+          :disabled="hidingToggling[contest.id]"
+          :title="contest.hidden ? 'Show this contest in the general contest list again.' : 'Hide this contest from the general contest list.'"
+          @click="toggleHidden(contest)"
+        >
+          {{ hidingToggling[contest.id] ? 'Working…' : contest.hidden ? 'Show' : 'Hide' }}
         </button>
       </div>
     </div>

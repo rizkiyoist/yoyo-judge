@@ -22,6 +22,16 @@ export const useContestStore = defineStore('contests', () => {
     return contest
   }
 
+  async function updateContest(contestId: string, name: string, year: number) {
+    await api.updateContest(contestId, name, year)
+    await refreshContest(contestId)
+  }
+
+  async function setContestHidden(contestId: string, hidden: boolean) {
+    await api.setContestHidden(contestId, hidden)
+    await refreshContest(contestId)
+  }
+
   async function addDivision(contestId: string, name: string, stages: ScoringStage[]) {
     await api.addDivision(contestId, name, stages)
     await refreshContest(contestId)
@@ -50,6 +60,8 @@ export const useContestStore = defineStore('contests', () => {
     loading,
     fetchContests,
     createContest,
+    updateContest,
+    setContestHidden,
     addDivision,
     updateDivisionStages,
     deleteDivision,
