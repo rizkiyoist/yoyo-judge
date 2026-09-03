@@ -46,6 +46,17 @@ function debounceSave(key: string, fn: () => Promise<void>) {
   }, DEBOUNCE_MS)
 }
 
+// The field's displayed value while an edit is pending/debouncing/in
+// flight - not the server's (stale, until the save round-trips) value, so
+// each click of the stepper (which computes its next value from what's
+// currently displayed) keeps incrementing instead of recomputing from the
+// same stale base every time. Cleared once the save completes and the
+// fresh server value takes over again.
+const pendingValues = ref<Record<string, number>>({})
+function displayValue(key: string, fallback: number): number {
+  return pendingValues.value[key] ?? fallback
+}
+
 const division = computed(() => contest.value?.divisions.find((d) => d.id === props.divisionId))
 const isHeadJudge = computed(() => contest.value?.headJudgeUserId === auth.user?.id)
 // Locking freezes the whole contest for everyone, including the head
@@ -92,35 +103,41 @@ function rawFor(playerId: string): PlayerRawScores | undefined {
 function saveClicker(playerId: string, field: 'plus' | 'minus', value: number) {
   if (!myClickerAssignment.value || inputsDisabled.value) return
   const key = statusKey('clicker', playerId, field)
+  pendingValues.value[key] = value
   debounceSave(key, async () => {
     const slot = myClickerAssignment.value!.slot
     const existing = rawFor(playerId)?.clickers[slot] ?? { plus: 0, minus: 0 }
     const next = { ...existing, [field]: value }
     await api.submitClickerScore(props.divisionId, props.stage, playerId, slot, next)
     await load()
+    delete pendingValues.value[key]
   })
 }
 
 function saveDeduction(playerId: string, field: 'stop' | 'discard' | 'cut', value: number) {
   if (inputsDisabled.value || !canEditDeductions.value) return
   const key = statusKey('deduction', playerId, field)
+  pendingValues.value[key] = value
   debounceSave(key, async () => {
     const existing = rawFor(playerId)?.deductions ?? { stop: 0, discard: 0, cut: 0 }
     const next = { ...existing, [field]: value }
     await api.submitDeductions(props.divisionId, props.stage, playerId, next)
     await load()
+    delete pendingValues.value[key]
   })
 }
 
 function saveEval(playerId: string, category: string, value: number) {
   if (!myEvalAssignment.value || inputsDisabled.value) return
   const key = statusKey('eval', playerId, category)
+  pendingValues.value[key] = value
   debounceSave(key, async () => {
     const slot = myEvalAssignment.value!.slot
     const existing = rawFor(playerId)?.evals[slot] ?? {}
     const next = { ...existing, [category]: value }
     await api.submitEvalScore(props.divisionId, props.stage, playerId, slot, next)
     await load()
+    delete pendingValues.value[key]
   })
 }
 </script>
@@ -166,13 +183,16 @@ function saveEval(playerId: string, category: string, value: number) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in players" :key="p.id">
+          <tr v-for="(p, i) in players" :key="p.id">
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
             <td>
               <ScoreNumberInput
                 :min="0"
-                :model-value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.plus ?? 0"
+                group="clicker"
+                :row="i"
+                :col="0"
+                :model-value="displayValue(statusKey('clicker', p.id, 'plus'), rawFor(p.id)?.clickers[myClickerAssignment.slot]?.plus ?? 0)"
                 :disabled="inputsDisabled"
                 @update:model-value="saveClicker(p.id, 'plus', $event)"
               />
@@ -180,7 +200,10 @@ function saveEval(playerId: string, category: string, value: number) {
             <td>
               <ScoreNumberInput
                 :min="0"
-                :model-value="rawFor(p.id)?.clickers[myClickerAssignment.slot]?.minus ?? 0"
+                group="clicker"
+                :row="i"
+                :col="1"
+                :model-value="displayValue(statusKey('clicker', p.id, 'minus'), rawFor(p.id)?.clickers[myClickerAssignment.slot]?.minus ?? 0)"
                 :disabled="inputsDisabled"
                 @update:model-value="saveClicker(p.id, 'minus', $event)"
               />
@@ -203,14 +226,17 @@ function saveEval(playerId: string, category: string, value: number) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in players" :key="p.id">
+          <tr v-for="(p, i) in players" :key="p.id">
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
-            <td v-for="cat in categories" :key="cat.name">
+            <td v-for="(cat, ci) in categories" :key="cat.name">
               <ScoreNumberInput
                 :min="0"
                 :max="cat.maxValue"
-                :model-value="rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? DEFAULT_EVAL_SCORE"
+                group="eval"
+                :row="i"
+                :col="ci"
+                :model-value="displayValue(statusKey('eval', p.id, cat.name), rawFor(p.id)?.evals[myEvalAssignment.slot]?.[cat.name] ?? DEFAULT_EVAL_SCORE)"
                 :disabled="inputsDisabled"
                 @update:model-value="saveEval(p.id, cat.name, $event)"
               />
@@ -238,13 +264,16 @@ function saveEval(playerId: string, category: string, value: number) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in players" :key="p.id">
+          <tr v-for="(p, i) in players" :key="p.id">
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
             <td>
               <ScoreNumberInput
                 :min="0"
-                :model-value="rawFor(p.id)?.deductions.stop ?? 0"
+                group="deduction"
+                :row="i"
+                :col="0"
+                :model-value="displayValue(statusKey('deduction', p.id, 'stop'), rawFor(p.id)?.deductions.stop ?? 0)"
                 :disabled="inputsDisabled"
                 @update:model-value="saveDeduction(p.id, 'stop', $event)"
               />
@@ -252,7 +281,10 @@ function saveEval(playerId: string, category: string, value: number) {
             <td>
               <ScoreNumberInput
                 :min="0"
-                :model-value="rawFor(p.id)?.deductions.discard ?? 0"
+                group="deduction"
+                :row="i"
+                :col="1"
+                :model-value="displayValue(statusKey('deduction', p.id, 'discard'), rawFor(p.id)?.deductions.discard ?? 0)"
                 :disabled="inputsDisabled"
                 @update:model-value="saveDeduction(p.id, 'discard', $event)"
               />
@@ -260,7 +292,10 @@ function saveEval(playerId: string, category: string, value: number) {
             <td>
               <ScoreNumberInput
                 :min="0"
-                :model-value="rawFor(p.id)?.deductions.cut ?? 0"
+                group="deduction"
+                :row="i"
+                :col="2"
+                :model-value="displayValue(statusKey('deduction', p.id, 'cut'), rawFor(p.id)?.deductions.cut ?? 0)"
                 :disabled="inputsDisabled"
                 @update:model-value="saveDeduction(p.id, 'cut', $event)"
               />

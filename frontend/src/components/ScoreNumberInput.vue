@@ -9,6 +9,15 @@ const props = withDefaults(
     step?: number
     disabled?: boolean
     width?: string
+    // Identifies this input's position within its table so arrow-key nav
+    // can move to the same column in the row above/below (Up/Down/Enter)
+    // or the neighboring column in the same row (Left/Right). group scopes
+    // navigation to one table - inputs in the clicker table never jump
+    // into the eval table, say - and is required for arrow nav to work at
+    // all (omit it on a one-off input with no siblings to navigate to).
+    group?: string
+    row?: number
+    col?: number
   }>(),
   { step: 1, width: '80px' },
 )
@@ -34,28 +43,52 @@ function bump(dir: 1 | -1) {
   inputRef.value?.focus()
 }
 
-// Arrow up/down move focus to the neighboring input rather than nudging
-// the numeric value (that's what the on-screen ▲▼ buttons are for).
-// Enter is a nice bonus - moves to the next field.
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') {
-    e.preventDefault()
-    focusSibling(e.key === 'ArrowUp' ? -1 : 1)
-  }
-}
-
-function focusSibling(dir: 1 | -1) {
-  if (!inputRef.value) return
+// Moves focus to the input at (row + dRow, col + dCol) within the same
+// group, if one exists - the mechanics behind Up/Down/Left/Right/Enter
+// below.
+function focusAt(dRow: number, dCol: number) {
+  if (props.row === undefined || props.col === undefined) return
+  const targetRow = props.row + dRow
+  const targetCol = props.col + dCol
   const all = Array.from(document.querySelectorAll<HTMLInputElement>('input.score-input'))
-  const idx = all.indexOf(inputRef.value)
-  if (idx < 0) return
-  let next = idx + dir
-  // Skip disabled siblings so navigation lands on a usable input.
-  while (next >= 0 && next < all.length && all[next].disabled) next += dir
-  const target = all[next]
+  const target = all.find(
+    (el) =>
+      el.dataset.group === (props.group ?? '') &&
+      Number(el.dataset.row) === targetRow &&
+      Number(el.dataset.col) === targetCol &&
+      !el.disabled,
+  )
   if (target) {
     target.focus()
     target.select()
+  }
+}
+
+// Arrow keys navigate the score grid like a spreadsheet rather than
+// nudging the numeric value or moving the text cursor (that's what the
+// on-screen ▲▼ buttons and typing are for): Up/Down move to the same
+// column in the row above/below, Left/Right to the neighboring column in
+// the same row, and Enter moves down a row for fast top-to-bottom entry
+// through one column.
+function onKeydown(e: KeyboardEvent) {
+  switch (e.key) {
+    case 'ArrowUp':
+      e.preventDefault()
+      focusAt(-1, 0)
+      break
+    case 'ArrowDown':
+    case 'Enter':
+      e.preventDefault()
+      focusAt(1, 0)
+      break
+    case 'ArrowLeft':
+      e.preventDefault()
+      focusAt(0, -1)
+      break
+    case 'ArrowRight':
+      e.preventDefault()
+      focusAt(0, 1)
+      break
   }
 }
 
@@ -89,6 +122,9 @@ function onBlur() {
       autocomplete="off"
       :value="modelValue"
       :disabled="disabled"
+      :data-group="group"
+      :data-row="row"
+      :data-col="col"
       :style="{ width }"
       @keydown="onKeydown"
       @focus="onFocus"
