@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { api } from '../api'
 import { finalCategories, prelimCategories } from '../lib/scoring'
+import ContestWorkspaceLayout from '../components/ContestWorkspaceLayout.vue'
 import type { Contest, JudgeAssignment, Player, PlayerRawScores, PlayerResult, ScoringStage, User } from '../types'
 
 const props = defineProps<{ contestId: string; divisionId: string; stage: ScoringStage }>()
@@ -85,14 +86,26 @@ function rawFor(playerId: string): PlayerRawScores | undefined {
 function toggle(playerId: string) {
   expanded.value[playerId] = !expanded.value[playerId]
 }
+
+// The results table has 14+ columns (T.Ex + 8 categories + totals +
+// 3 deductions + Final Score + Details). At the default #app max-width
+// of 1120px it needs horizontal scroll even on wide monitors. Widen
+// #app while this view is mounted so the table fits without scrolling
+// when the viewport can spare the room; narrow viewports still get a
+// scrollbar via the .card's own overflow.
+onMounted(() => document.documentElement.setAttribute('data-wide-page', ''))
+onUnmounted(() => document.documentElement.removeAttribute('data-wide-page'))
 </script>
 
+<style>
+:root[data-wide-page] #app { max-width: min(1440px, calc(100% - 24px)); }
+</style>
+
 <template>
-  <div v-if="contest">
-    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
+  <ContestWorkspaceLayout v-if="contest" :contest-id="contestId" active-tab="result-detail">
     <h1>{{ contest.name }} - {{ division?.name }} ({{ stage }}) results</h1>
 
-    <div class="card">
+    <div class="card" style="overflow-x: auto">
       <table v-if="sortedResults.length" style="min-width: max-content">
         <thead>
           <tr>
@@ -192,6 +205,6 @@ function toggle(playerId: string) {
       </table>
       <p v-else class="muted">No players to score yet.</p>
     </div>
-  </div>
+  </ContestWorkspaceLayout>
   <p v-else class="muted">Loading…</p>
 </template>

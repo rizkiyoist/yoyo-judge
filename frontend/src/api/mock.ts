@@ -42,7 +42,14 @@ interface Db {
 const STORAGE_KEY = 'yoyo-judge-mock-db-v1'
 
 function uid(prefix: string): string {
-  return `${prefix}_${crypto.randomUUID().slice(0, 8)}`
+  // crypto.randomUUID is only defined in secure contexts (HTTPS/localhost),
+  // so it's absent when the mock is loaded over a plain-HTTP LAN preview.
+  // Random-hex fallback keeps mock IDs unique enough for local demos.
+  const rand =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().slice(0, 8)
+      : Math.random().toString(16).slice(2, 10)
+  return `${prefix}_${rand}`
 }
 
 function delay<T>(value: T, ms = 150): Promise<T> {

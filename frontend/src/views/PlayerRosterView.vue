@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
+import ContestWorkspaceLayout from '../components/ContestWorkspaceLayout.vue'
+import Icon from '../components/Icon.vue'
 import type { Contest, Player } from '../types'
 
 const props = defineProps<{ contestId: string; divisionId: string }>()
@@ -53,8 +55,7 @@ async function removePlayer(playerId: string) {
 </script>
 
 <template>
-  <div v-if="contest">
-    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
+  <ContestWorkspaceLayout v-if="contest" :contest-id="contestId" active-tab="players">
     <h1>{{ contest.name }} - {{ division?.name }} players</h1>
 
     <p v-if="contest.locked" class="error">
@@ -88,8 +89,14 @@ async function removePlayer(playerId: string) {
             <td>{{ p.number }}</td>
             <td>{{ p.name }}</td>
             <td v-if="canEdit">
-              <button class="danger" :disabled="contest.locked || removing[p.id]" @click="removePlayer(p.id)">
-                {{ removing[p.id] ? 'Removing…' : 'Remove' }}
+              <button
+                class="danger icon-only"
+                :disabled="contest.locked || removing[p.id]"
+                :title="removing[p.id] ? 'Removing…' : 'Remove player'"
+                :aria-label="'Remove player ' + p.name"
+                @click="removePlayer(p.id)"
+              >
+                <Icon name="trash" :size="16" />
               </button>
             </td>
           </tr>
@@ -97,6 +104,6 @@ async function removePlayer(playerId: string) {
       </table>
       <p v-else class="muted">No players yet.</p>
     </div>
-  </div>
+  </ContestWorkspaceLayout>
   <p v-else class="muted">Loading…</p>
 </template>

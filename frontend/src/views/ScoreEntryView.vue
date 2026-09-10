@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import ScoreNumberInput from '../components/ScoreNumberInput.vue'
+import ContestWorkspaceLayout from '../components/ContestWorkspaceLayout.vue'
 import { finalCategories, prelimCategories } from '../lib/scoring'
 import { useAuthStore } from '../stores/auth'
 import type { Contest, JudgeAssignment, Player, PlayerRawScores, ScoringStage } from '../types'
@@ -143,8 +144,7 @@ function saveEval(playerId: string, category: string, value: number) {
 </script>
 
 <template>
-  <div v-if="contest">
-    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
+  <ContestWorkspaceLayout v-if="contest" :contest-id="contestId" active-tab="input-score">
     <h1>{{ contest.name }} - {{ division?.name }} ({{ stage }}) scoring</h1>
 
     <p v-if="isHeadJudge" class="row" style="align-items: center">
@@ -304,6 +304,6 @@ function saveEval(playerId: string, category: string, value: number) {
     </div>
 
     <p v-if="players.length === 0" class="muted">No players in this division yet.</p>
-  </div>
+  </ContestWorkspaceLayout>
   <p v-else class="muted">Loading…</p>
 </template>

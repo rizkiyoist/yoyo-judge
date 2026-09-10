@@ -4,6 +4,7 @@ import { api } from '../api'
 import { finalCategories } from '../lib/scoring'
 import { useAuthStore } from '../stores/auth'
 import { useContestStore } from '../stores/contests'
+import Icon from '../components/Icon.vue'
 import type { Contest, Division, JudgeAssignment, PlayerResult, ScoringStage, User } from '../types'
 
 const FINAL_CATEGORY_LABELS: Record<string, string> = {
@@ -108,6 +109,30 @@ function judgesByRole(assignments: JudgeAssignment[] | undefined, role: JudgeAss
     })
     .sort((a, b) => a.slot - b.slot)
 }
+
+// Accordion state — a contest expands to reveal its per-division-per-stage
+// top-3 preview. Default: first contest opens on load.
+const openContests = ref<Set<string>>(new Set())
+function isOpen(contestId: string): boolean {
+  return openContests.value.has(contestId)
+}
+function toggleOpen(contestId: string): void {
+  const next = new Set(openContests.value)
+  if (next.has(contestId)) next.delete(contestId)
+  else next.add(contestId)
+  openContests.value = next
+}
+// After the initial fetch, auto-expand the first contest so the page isn't
+// a wall of collapsed rows on first visit.
+watch(
+  () => store.contests,
+  (contests) => {
+    if (!openContests.value.size && contests.length) {
+      openContests.value = new Set([contests[0].id])
+    }
+  },
+  { immediate: true },
+)
 
 const downloading = ref<Record<string, boolean>>({})
 const lockToggling = ref<Record<string, boolean>>({})
@@ -280,35 +305,39 @@ async function createContest() {
 
 <template>
   <h1>All Contests</h1>
+  <p class="muted" style="margin-bottom: 22px">Open a contest to manage divisions, judges, players and scores.</p>
 
-  <div class="card">
-    <h2>Create a contest</h2>
-    <form class="row" @submit.prevent="createContest">
-      <input v-model="newName" type="text" placeholder="Contest name" style="flex: 1" />
-      <input v-model.number="newYear" type="number" placeholder="Year" style="width: 100px" />
-      <button class="primary" type="submit" :disabled="creating">Create</button>
-    </form>
-  </div>
+  <form class="new-contest" @submit.prevent="createContest">
+    <span class="lbl">Create a contest</span>
+    <input v-model="newName" type="text" placeholder="Contest name" />
+    <input v-model.number="newYear" type="number" placeholder="Year" style="width: 100px" />
+    <button class="primary" type="submit" :disabled="creating">Create</button>
+  </form>
 
   <p v-if="store.loading" class="muted">Loading…</p>
 
   <div
     v-for="contest in store.contests"
     :key="contest.id"
-    class="card"
+    class="card contest-card"
+    :class="{ 'is-open': isOpen(contest.id) }"
     :style="contest.hidden ? 'opacity: 0.55' : ''"
   >
-    <div class="row" style="justify-content: space-between; margin-bottom: 16px">
-      <div class="row" v-if="editingContestId !== contest.id">
-        <h2 style="margin: 0">{{ contest.name }}</h2>
-        <span class="badge-year">{{ contest.year }}</span>
-        <span v-if="contest.locked" class="badge" title="Locked by head judge">🔒 Locked</span>
-        <span v-if="contest.hidden" class="badge" title="Hidden from the general contest list - only you (superadmin) can see it">
-          🙈 Hidden
-        </span>
-        <button v-if="auth.user?.isSuperAdmin" @click="startEditContest(contest)">Edit</button>
+    <div class="contest-head" @click="toggleOpen(contest.id)">
+      <span class="caret"><Icon name="chevron-right" :size="16" /></span>
+      <div class="info" v-if="editingContestId !== contest.id">
+        <div class="title">
+          <span>{{ contest.name }}</span>
+          <span class="badge-year">{{ contest.year }}</span>
+          <span v-if="contest.locked" class="plain-pill" title="Locked by head judge">Locked</span>
+          <span v-if="contest.hidden" class="plain-pill" title="Hidden from the general contest list — only superadmins can see it">Hidden</span>
+        </div>
+        <div class="meta">
+          {{ contest.divisions.length }} division{{ contest.divisions.length === 1 ? '' : 's' }}
+          <template v-if="usersById[contest.headJudgeUserId]"> · Head judge: {{ judgeName(contest.headJudgeUserId) }}</template>
+        </div>
       </div>
-      <div class="row" v-else>
+      <div class="row" v-else @click.stop>
         <input v-model="editName" type="text" placeholder="Contest name" style="width: 220px" />
         <input v-model.number="editYear" type="number" placeholder="Year" style="width: 100px" />
         <button class="primary" :disabled="savingEdit" @click="saveContestEdit(contest)">
@@ -316,20 +345,14 @@ async function createContest() {
         </button>
         <button :disabled="savingEdit" @click="cancelEditContest">Cancel</button>
       </div>
-      <div class="row">
-        <RouterLink :to="{ name: 'contest-edit', params: { contestId: contest.id } }">
-          <button>Divisions</button>
-        </RouterLink>
-        <RouterLink :to="{ name: 'contest-judges', params: { contestId: contest.id } }">
-          <button>Judges</button>
-        </RouterLink>
+      <div class="contest-head-actions" @click.stop>
+        <button v-if="auth.user?.isSuperAdmin && editingContestId !== contest.id" @click="startEditContest(contest)">Edit</button>
         <button :disabled="downloading[contest.id]" @click="downloadContestResults(contest)">
           {{ downloading[contest.id] ? 'Preparing…' : 'Download Results' }}
         </button>
         <button
           v-if="contest.headJudgeUserId === userId"
           :disabled="lockToggling[contest.id]"
-          :class="{ primary: !contest.locked }"
           :title="contest.locked ? 'Unlock this contest so scores and settings can be changed again.' : 'Lock this contest to freeze all scores and settings.'"
           @click="toggleLock(contest)"
         >
@@ -343,99 +366,49 @@ async function createContest() {
         >
           {{ hidingToggling[contest.id] ? 'Working…' : contest.hidden ? 'Show' : 'Hide' }}
         </button>
+        <RouterLink :to="{ name: 'contest-edit', params: { contestId: contest.id } }">
+          <button class="primary">Open →</button>
+        </RouterLink>
       </div>
     </div>
 
-    <p v-if="!contest.divisions.length" class="muted">No divisions yet - add one to get started.</p>
-
-    <table v-else>
-      <thead>
-        <tr>
-          <th>Division</th>
-          <th>Stages</th>
-          <th>Players</th>
-          <th>Input Score</th>
-          <th>Result Detail</th>
-          <th>Top 3</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="division in contest.divisions" :key="division.id">
-          <td>{{ division.name }}</td>
-          <td>
-            <span v-for="stage in division.stages" :key="stage" class="badge" style="margin-right: 4px">
-              {{ stage }}
-            </span>
-          </td>
-          <td>
-            <RouterLink :to="{ name: 'division-players', params: { contestId: contest.id, divisionId: division.id } }">
-              <button>Players</button>
-            </RouterLink>
-          </td>
-          <td>
-            <div style="display: flex; flex-direction: column; gap: 6px; align-items: stretch">
-              <RouterLink
-                v-for="stage in orderedStages(division.stages)"
-                :key="stage"
-                :to="{ name: 'score-entry', params: { contestId: contest.id, divisionId: division.id, stage } }"
-              >
-                <button style="width: 100%">{{ stageLabel(stage) }}</button>
+    <div class="contest-body">
+      <p v-if="!contest.divisions.length" class="muted">No divisions yet - open the contest to add one.</p>
+      <template v-else>
+        <template v-for="division in contest.divisions" :key="division.id">
+          <div v-for="stage in orderedStages(division.stages)" :key="division.id + ':' + stage" class="division-stage-block">
+            <div>
+              <div class="dsb-title">
+                <span class="div-name">{{ division.name }}</span>
+                <span class="pill-stage" :class="stage">{{ stageLabel(stage) }}</span>
+              </div>
+              <table v-if="topThree(division.id, stage).length" class="top3-mini">
+                <thead>
+                  <tr><th></th><th>Player</th><th class="score-hd">Final Score</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in topThree(division.id, stage)" :key="r.playerId">
+                    <td class="rank-cell">
+                      <span
+                        class="rank-badge"
+                        :class="{ gold: r.place === 1, silver: r.place === 2, bronze: r.place === 3 }"
+                      >{{ r.place }}</span>
+                    </td>
+                    <td>{{ r.name }}</td>
+                    <td class="score-cell">{{ r.finalScore.toFixed(2) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else class="no-results">No results yet.</p>
+            </div>
+            <div>
+              <RouterLink :to="{ name: 'results', params: { contestId: contest.id, divisionId: division.id, stage } }">
+                <button :disabled="!topThree(division.id, stage).length">Result Detail</button>
               </RouterLink>
             </div>
-          </td>
-          <td>
-            <div style="display: flex; flex-direction: column; gap: 6px; align-items: stretch">
-              <RouterLink
-                v-for="stage in orderedStages(division.stages)"
-                :key="stage + '-results'"
-                :to="{ name: 'results', params: { contestId: contest.id, divisionId: division.id, stage } }"
-              >
-                <button style="width: 100%">{{ stageLabel(stage) }}</button>
-              </RouterLink>
-            </div>
-          </td>
-          <td>
-            <template v-if="topThreeStage(division.stages)">
-              <div class="muted" style="font-size: 0.78rem">{{ stageLabel(topThreeStage(division.stages)!) }}</div>
-              <ol
-                v-if="topThree(division.id, topThreeStage(division.stages)!).length"
-                style="margin: 0; padding-left: 16px"
-              >
-                <li v-for="r in topThree(division.id, topThreeStage(division.stages)!)" :key="r.playerId">
-                  {{ r.name }}
-                </li>
-              </ol>
-              <span v-else class="muted">-</span>
-            </template>
-            <span v-else class="muted">-</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div v-if="judgesByContest[contest.id]?.length" class="row" style="align-items: flex-start; margin-top: 14px; gap: 32px">
-      <div>
-        <h3 style="margin: 0 0 4px">Clicker Judges (TEx)</h3>
-        <p v-if="!judgesByRole(judgesByContest[contest.id], 'clicker').length" class="muted">None assigned.</p>
-        <ul v-else style="margin: 0; padding-left: 18px">
-          <li v-for="a in judgesByRole(judgesByContest[contest.id], 'clicker')" :key="a.id">
-            #{{ a.slot }} -
-            <strong v-if="a.userId === contest.ownerUserId">{{ judgeName(a.userId) }}</strong>
-            <template v-else>{{ judgeName(a.userId) }}</template>
-          </li>
-        </ul>
-      </div>
-      <div>
-        <h3 style="margin: 0 0 4px">Evaluation Judges (PEv)</h3>
-        <p v-if="!judgesByRole(judgesByContest[contest.id], 'evaluator').length" class="muted">None assigned.</p>
-        <ul v-else style="margin: 0; padding-left: 18px">
-          <li v-for="a in judgesByRole(judgesByContest[contest.id], 'evaluator')" :key="a.id">
-            #{{ a.slot }} -
-            <strong v-if="a.userId === contest.ownerUserId">{{ judgeName(a.userId) }}</strong>
-            <template v-else>{{ judgeName(a.userId) }}</template>
-          </li>
-        </ul>
-      </div>
+          </div>
+        </template>
+      </template>
     </div>
   </div>
 

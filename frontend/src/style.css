@@ -468,3 +468,146 @@ th.col-deduction {
   th, td { padding: 8px 10px; font-size: 0.85rem; }
   button { padding: 8px 12px; }
 }
+
+/* --- Redesign primitives — see docs/LAYOUT_SPEC.md.
+       Accordion contest list on the main page, tabbed shell for the
+       contest workspace, plain-text status pills. --- */
+
+.plain-pill {
+  display: inline-flex; align-items: center;
+  padding: 2px 10px; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em;
+  background: var(--bg-alt); color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.pill-stage {
+  display: inline-flex; align-items: center;
+  padding: 2px 10px; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em;
+}
+.pill-stage.prelim { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.pill-stage.final { background: var(--accent-soft); color: var(--accent); }
+:root[data-theme='dark'] .pill-stage.prelim { color: #93c5fd; background: rgba(147, 197, 253, 0.18); }
+
+/* Accordion contest card on the main page. */
+.contest-card { padding: 16px 20px; margin-bottom: 12px; }
+.contest-head { display: flex; align-items: center; gap: 12px; cursor: pointer; flex-wrap: wrap; }
+.contest-head .caret { color: var(--text-muted); transition: transform 0.15s; width: 12px; display: inline-block; text-align: center; }
+.contest-card.is-open .contest-head .caret { transform: rotate(90deg); }
+.contest-head .info { flex: 1; min-width: 0; }
+.contest-head .title { font-weight: 600; font-size: 1.02rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.contest-head .meta { color: var(--text-muted); font-size: 0.82rem; margin-top: 2px; }
+.contest-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.contest-body { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.contest-card.is-open .contest-body { display: block; }
+.division-stage-block { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.division-stage-block:last-child { border-bottom: none; }
+.dsb-title { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dsb-title .div-name { font-weight: 600; font-size: 0.95rem; }
+@media (max-width: 640px) { .division-stage-block { grid-template-columns: 1fr; gap: 10px; } }
+:root[data-mobile-view] .division-stage-block { grid-template-columns: 1fr; gap: 10px; }
+
+/* Top-3 mini-table. Fills the whole division-stage row so the Final Score
+   column right-aligns against the Result Detail button on the far right,
+   instead of clustering on the left with dead space in between. */
+.top3-mini { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+.top3-mini th, .top3-mini td { padding: 3px 8px; border: none; text-align: left; vertical-align: middle; background: transparent; }
+.top3-mini thead th { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.top3-mini tbody td { padding-top: 4px; padding-bottom: 4px; }
+.top3-mini td.rank-cell { width: 24px; padding-right: 0; }
+.top3-mini th.score-hd, .top3-mini td.score-cell { text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; white-space: nowrap; }
+.rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: var(--bg-alt); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rank-badge.gold { background: #fef3c7; color: #92400e; }
+.rank-badge.silver { background: #e5e7eb; color: #374151; }
+.rank-badge.bronze { background: #fed7aa; color: #9a3412; }
+.no-results { color: var(--text-muted); font-style: italic; font-size: 0.82rem; }
+
+/* Create-contest form banner on the main page. */
+.new-contest {
+  display: flex; gap: 8px; align-items: center; padding: 14px 18px;
+  background: var(--surface); border: 1px dashed var(--border-strong);
+  border-radius: var(--radius); margin-bottom: 22px; flex-wrap: wrap;
+}
+.new-contest input[type="text"] { flex: 1; min-width: 220px; }
+.new-contest .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; }
+
+/* Action-button table cells (Delete / Remove) belong on the right edge of
+   the row so the button hugs the outer border instead of drifting into
+   the middle of a wide column. Targets td's whose sole interactive child
+   is a danger button — Delete / Remove throughout the workspace tabs.
+   `width: 1px` collapses the column to just its content so the trash
+   icon doesn't waste a third of the table's horizontal space. */
+th:empty:last-child { width: 1px; white-space: nowrap; }
+td:has(> button.danger:only-child) { text-align: right; width: 1px; white-space: nowrap; }
+
+/* Compact icon-only button — used for the trash button in workspace tables
+   and the theme/view-mode buttons in the top nav. Keeps the click target
+   at ~36px so it's still tappable on mobile. */
+button.icon-only, button.chrome-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; line-height: 1;
+}
+button.icon-only.danger:hover {
+  background: var(--danger-soft); border-color: var(--danger); color: var(--danger);
+}
+
+/* Contest workspace shell: sticky tab bar directly under the top nav. */
+.workspace-crumb { display: inline-block; margin-top: 4px; font-size: 0.85rem; color: var(--text-muted); }
+.workspace-crumb:hover { color: var(--text); text-decoration: none; }
+.tabs-bar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: var(--topbar-h, 0px); z-index: 5; margin: 16px -20px 20px; padding: 0 20px; }
+.tabs-inner { max-width: 1120px; margin: 0 auto; display: flex; gap: 0; overflow-x: auto; }
+.tab { padding: 14px 18px; font-size: 0.9rem; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap; text-decoration: none; }
+.tab:hover { color: var(--text); text-decoration: none; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* --- Manual mobile-view override (toggled from the nav; independent
+       of viewport width so it also fires on desktop for previewing). --- */
+
+:root[data-mobile-view] {
+  font-size: 19px;
+}
+:root[data-mobile-view] #app {
+  max-width: 640px;
+  padding: 0 14px 48px;
+}
+:root[data-mobile-view] .app-nav {
+  padding: 14px 0;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+:root[data-mobile-view] .app-nav .user {
+  gap: 10px;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+:root[data-mobile-view] .card {
+  padding: 18px;
+  border-radius: 12px;
+}
+:root[data-mobile-view] button {
+  padding: 10px 14px;
+  min-height: 44px;
+}
+:root[data-mobile-view] input[type='text'],
+:root[data-mobile-view] input[type='email'],
+:root[data-mobile-view] input[type='number'],
+:root[data-mobile-view] input[type='password'],
+:root[data-mobile-view] input[type='search'],
+:root[data-mobile-view] select,
+:root[data-mobile-view] textarea {
+  padding: 10px 12px;
+  font-size: 1rem;
+}
+:root[data-mobile-view] th,
+:root[data-mobile-view] td {
+  padding: 12px 14px;
+}
+:root[data-mobile-view] .score-input-wrap .score-input {
+  padding: 10px 8px;
+  font-size: 1.05rem;
+}
+:root[data-mobile-view] .score-step {
+  min-width: 28px;
+  font-size: 10px;
+}

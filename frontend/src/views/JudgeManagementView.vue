@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
+import ContestWorkspaceLayout from '../components/ContestWorkspaceLayout.vue'
+import Icon from '../components/Icon.vue'
 import type { Contest, JudgeAssignment, JudgeRole, ScoringStage, User } from '../types'
 
 const props = defineProps<{ contestId: string }>()
@@ -238,8 +240,7 @@ async function assignMd() {
 </script>
 
 <template>
-  <div v-if="contest">
-    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
+  <ContestWorkspaceLayout v-if="contest" :contest-id="contestId" active-tab="judges">
     <div class="row" style="justify-content: space-between; align-items: center">
       <h1 style="margin: 0">{{ contest.name }} - Judges</h1>
       <div v-if="hasDivisions" class="row" style="gap: 4px">
@@ -348,8 +349,14 @@ async function assignMd() {
                   <div v-if="removeError[a.id]" class="error" style="font-size: 0.85em">{{ removeError[a.id] }}</div>
                 </td>
                 <td v-if="canManage">
-                  <button class="danger" :disabled="contest.locked || removing[a.id]" @click="remove(a)">
-                    {{ removing[a.id] ? 'Removing…' : 'Remove' }}
+                  <button
+                    class="danger icon-only"
+                    :disabled="contest.locked || removing[a.id]"
+                    :title="removing[a.id] ? 'Removing…' : 'Remove judge'"
+                    :aria-label="'Remove judge ' + userLabel(a.userId)"
+                    @click="remove(a)"
+                  >
+                    <Icon name="trash" :size="16" />
                   </button>
                 </td>
               </tr>
@@ -378,8 +385,14 @@ async function assignMd() {
                   <div v-if="removeError[a.id]" class="error" style="font-size: 0.85em">{{ removeError[a.id] }}</div>
                 </td>
                 <td v-if="canManage">
-                  <button class="danger" :disabled="contest.locked || removing[a.id]" @click="remove(a)">
-                    {{ removing[a.id] ? 'Removing…' : 'Remove' }}
+                  <button
+                    class="danger icon-only"
+                    :disabled="contest.locked || removing[a.id]"
+                    :title="removing[a.id] ? 'Removing…' : 'Remove judge'"
+                    :aria-label="'Remove judge ' + userLabel(a.userId)"
+                    @click="remove(a)"
+                  >
+                    <Icon name="trash" :size="16" />
                   </button>
                 </td>
               </tr>
@@ -412,8 +425,14 @@ async function assignMd() {
                 </div>
               </td>
               <td v-if="canManage">
-                <button class="danger" :disabled="contest.locked || removing[mdAssignment.id]" @click="remove(mdAssignment)">
-                  {{ removing[mdAssignment.id] ? 'Removing…' : 'Remove' }}
+                <button
+                  class="danger icon-only"
+                  :disabled="contest.locked || removing[mdAssignment.id]"
+                  :title="removing[mdAssignment.id] ? 'Removing…' : 'Remove judge'"
+                  :aria-label="'Remove major-deduction judge ' + userLabel(mdAssignment.userId)"
+                  @click="remove(mdAssignment)"
+                >
+                  <Icon name="trash" :size="16" />
                 </button>
               </td>
             </tr>
@@ -458,6 +477,6 @@ async function assignMd() {
       </div>
       <span v-if="transferError" class="error">{{ transferError }}</span>
     </div>
-  </div>
+  </ContestWorkspaceLayout>
   <p v-else class="muted">Loading…</p>
 </template>

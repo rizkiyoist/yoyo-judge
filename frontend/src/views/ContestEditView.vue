@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useContestStore } from '../stores/contests'
+import ContestWorkspaceLayout from '../components/ContestWorkspaceLayout.vue'
+import Icon from '../components/Icon.vue'
 import type { Contest, Player, ScoringStage } from '../types'
 
 const props = defineProps<{ contestId: string }>()
@@ -85,8 +87,7 @@ async function deleteDivision(divisionId: string) {
 </script>
 
 <template>
-  <div v-if="contest">
-    <RouterLink :to="{ name: 'contests' }">&larr; Back to contests</RouterLink>
+  <ContestWorkspaceLayout v-if="contest" :contest-id="contestId" active-tab="divisions">
     <div class="row" style="justify-content: space-between; align-items: center">
       <h1 style="margin: 0">{{ contest.name }} - Divisions</h1>
       <RouterLink :to="{ name: 'contest-judges', params: { contestId } }">Go to Judges &rarr;</RouterLink>
@@ -144,12 +145,13 @@ async function deleteDivision(divisionId: string) {
             <td>{{ playerCount(division.id) }}</td>
             <td v-if="canEdit">
               <button
-                class="danger"
+                class="danger icon-only"
                 :disabled="contest.locked || deleting[division.id] || playerCount(division.id) > 0"
-                :title="playerCount(division.id) > 0 ? 'Remove all players from this division first' : ''"
+                :title="playerCount(division.id) > 0 ? 'Remove all players from this division first' : deleting[division.id] ? 'Deleting…' : 'Delete division'"
+                :aria-label="'Delete division ' + division.name"
                 @click="deleteDivision(division.id)"
               >
-                {{ deleting[division.id] ? 'Deleting…' : 'Delete' }}
+                <Icon name="trash" :size="16" />
               </button>
               <div v-if="deleteError[division.id]" class="error" style="font-size: 0.85em">
                 {{ deleteError[division.id] }}
@@ -160,6 +162,6 @@ async function deleteDivision(divisionId: string) {
       </table>
       <p v-else class="muted">No divisions yet.</p>
     </div>
-  </div>
+  </ContestWorkspaceLayout>
   <p v-else class="muted">Loading…</p>
 </template>
