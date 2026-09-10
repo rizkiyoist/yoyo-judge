@@ -58,14 +58,6 @@ function topThree(divisionId: string, stage: ScoringStage): PlayerResult[] {
     .slice(0, 3)
 }
 
-// Final is the definitive result; only fall back to prelim's top 3 when a
-// division has no final stage at all.
-function topThreeStage(stages: ScoringStage[]): ScoringStage | null {
-  if (stages.includes('final')) return 'final'
-  if (stages.includes('prelim')) return 'prelim'
-  return null
-}
-
 // Load each contest's judge assignments (to show "Judges: ...") and each
 // division+stage's results (to show the top 3) once the contest list is
 // known, and re-run whenever it changes (e.g. after create).
@@ -92,22 +84,6 @@ function judgeName(userId: string): string {
   const u = usersById.value[userId]
   if (!u) return userId
   return `${u.firstName} ${u.lastName}`.trim() || `${u.email} (not signed in yet)`
-}
-
-// A judge assigned to both prelim and final gets one JudgeAssignment per
-// stage; collapse those into one entry per (user, role, slot) for display,
-// sorted by slot.
-function judgesByRole(assignments: JudgeAssignment[] | undefined, role: JudgeAssignment['role']): JudgeAssignment[] {
-  const seen = new Set<string>()
-  return (assignments ?? [])
-    .filter((a) => a.role === role)
-    .filter((a) => {
-      const key = `${a.userId}:${a.slot}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    .sort((a, b) => a.slot - b.slot)
 }
 
 // Accordion state — a contest expands to reveal its per-division-per-stage
