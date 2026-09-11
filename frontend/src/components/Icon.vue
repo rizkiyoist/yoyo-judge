@@ -9,9 +9,6 @@ defineProps<{ name: IconName; size?: number | string }>()
 export type IconName =
   | 'sun'
   | 'moon'
-  | 'monitor'
-  | 'smartphone'
-  | 'wand'
   | 'chevron-right'
   | 'chevron-up'
   | 'chevron-down'
@@ -36,18 +33,6 @@ export type IconName =
     </template>
     <template v-else-if="name === 'moon'">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
-    </template>
-    <template v-else-if="name === 'monitor'">
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <path d="M8 21h8M12 17v4" />
-    </template>
-    <template v-else-if="name === 'smartphone'">
-      <rect x="6" y="2" width="12" height="20" rx="2" />
-      <path d="M11 18h2" />
-    </template>
-    <template v-else-if="name === 'wand'">
-      <path d="M15 4V2M15 10V8M9 4H7M11 6H9M20 22l-6-6M5 3v4M3 5h4M18 14v3M17 15h3" />
-      <path d="M12 4l8 8-2 2-8-8Z" />
     </template>
     <template v-else-if="name === 'chevron-right'">
       <polyline points="9 18 15 12 9 6" />

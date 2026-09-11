@@ -4,9 +4,8 @@ Source of truth for the redesigned UI. When the app under `frontend/src/` disagr
 
 ## Global chrome
 
-- **Top bar** on every page: `yoyo-judge` wordmark (no icon, plain text) on the left, then right-aligned: view-mode button, theme button, user name, "Log out". Sticky to top.
+- **Top bar** on every page: `yoyo-judge` wordmark (no icon, plain text) on the left, then right-aligned: theme button, user name, "Log out". Scrolls away with the page — it is not sticky; the workspace tab bar takes the top instead.
 - **Theme toggle**: 🌙 in light mode, ☀️ in dark mode. Persists in `localStorage`. Palette matches `frontend/src/style.css` (accent `#7c3aed` light / `#a78bfa` dark).
-- **View-mode toggle**: cycles Auto → Mobile → Desktop (icons: 🪄 / 📱 / 🖥️). Default Auto follows the `(max-width: 720px)` media query. `data-mobile-view` attribute on `<html>` bumps root font-size from 15px to 19px, narrows the content column to 640px, enlarges tap targets to ≥44px.
 - **No emojis in status labels** (badges/pills). Say "Locked" and "Hidden", not "🔒 Locked" / "🙈 Hidden".
 
 ## Main page — contest list
@@ -26,10 +25,10 @@ Source of truth for the redesigned UI. When the app under `frontend/src/` disagr
 Every contest sub-page shares this shell (in this order):
 1. Top bar (global).
 2. `← Back to contests` crumb link (inside the standard `.wrap`, no other content on this line).
-3. **Tab bar** — sticky, sits directly beneath the top bar via `top: var(--topbar-h)`. Tabs, in order: **Divisions · Judges · Players · Input Score · Result Detail**. Horizontally scrollable on mobile.
+3. **Tab bar** — sticky at `top: 0`; the top bar scrolls away underneath it, which keeps the most content on screen on short viewports. Tabs, in order: **Divisions · Judges · Players · Input Score · Result Detail**. Horizontally scrollable on mobile — `.tabs-inner` therefore also pins `overflow-y: hidden`, since setting only `overflow-x: auto` makes the other axis compute to `auto` and any vertical overflow raises an unwanted scrollbar. The -1px overlap that tucks the active tab's underline over the bar's bottom border belongs on `.tabs-inner`, not on `.tab`: on `.tab` it overflows the scroll container.
 4. Page content in the standard `.wrap` (`max-width: 1080px`, 32px side padding).
 
-Sticky offset: measure the top bar with JS on load, resize, and view-mode change; write `--topbar-h` on `:root`. Do not hardcode `top: 63px` — it breaks when mobile-view scales the font.
+**Swipe between tabs** (touch only, `ContestWorkspaceLayout.vue`): swipe left for the next tab, right for the previous, no wrap-around at either end. Requires ≥60px of horizontal travel and 1.5× more horizontal than vertical movement, so ordinary vertical scrolling never fires it; a swipe that starts inside a horizontally scrollable element (a wide score table, the tab strip itself) belongs to that element and is ignored. `<html>` sets `overscroll-behavior-x: contain` — without it the browser's own back/forward swipe wins and a right-swipe on the first tab leaves the contest entirely. It must be on `<html>`, not `<body>`, which has no effect.
 
 ## Workspace pages
 
@@ -145,7 +144,6 @@ The 🔒 is retained inside the warning banner (it's part of the current product
 Icons are monotone outline SVGs — Lucide-style paths inlined in **`frontend/src/components/Icon.vue`**. No emoji, no colored/pictorial icons anywhere in the chrome. Palette (add new ones to the component, don't scatter inline `<svg>` in views):
 
 - `sun`, `moon` — theme toggle in `App.vue`
-- `wand`, `smartphone`, `monitor` — view-mode cycle in `App.vue`
 - `chevron-right` — accordion caret on the contest list (CSS rotates it 90° when the card opens)
 - `chevron-up`, `chevron-down` — reserved for future collapsibles
 - `trash` — destructive row action (Delete/Remove) in Divisions, Judges, Players
@@ -156,16 +154,16 @@ Stroke uses `currentColor`, so any container's text color recolors the icon auto
 
 Delete / Remove in tables are icon-only trash buttons — no text label, `aria-label` carries the accessible name, `title` gives sighted hover copy (e.g. `Remove player`). Two shared CSS rules do the heavy lifting in `style.css`:
 
-- `button.icon-only, button.chrome-btn` — 34×34 square with centered SVG.
+- `button.icon-only, button.chrome-btn` — 34×34 square with centered SVG, and `flex: none` on that SVG. Both matter: with `box-sizing: border-box` and a fixed width, any rule that re-adds padding to these buttons collapses the content box and squashes the icon to a sliver. A blanket `button { padding: … }` must exclude them.
 - `td:has(> button.danger:only-child) { text-align: right; width: 1px; white-space: nowrap }` — the last column collapses to just the button so the trash doesn't waste a third of the row. Its empty header cell (`th:empty:last-child`) collapses the same way.
 
 ## Vue port — where the spec lives in the real app
 
 The spec has been ported into `frontend/src/`:
 
-- `App.vue` — top bar with plain `yoyo-judge` brand, view-mode cycle (🪄/📱/🖥️), theme toggle (🌙/☀️), user name, Log out. Measures its own height on mount / resize / theme+view-mode change and publishes `--topbar-h` on `<html>` so the workspace tab bar sticks flush against it in mobile-view.
+- `App.vue` — top bar with plain `yoyo-judge` brand, theme toggle (🌙/☀️), user name, Log out.
 - `composables/theme.ts` — `theme` (persisted `light`/`dark`), `viewMode` (persisted `auto`/`mobile`/`desktop`), and `cycleViewMode()`. `auto` resolves via `(max-width: 720px)`.
-- `style.css` — component styles (`.contest-card` accordion, `.division-stage-block`, `.top3-mini`, `.new-contest`, `.plain-pill`, `.pill-stage`, `.tabs-bar`/`.tab`, `.workspace-crumb`, `:root[data-mobile-view]` overrides).
+- `style.css` — component styles (`.contest-card` accordion, `.division-stage-block`, `.top3-mini`, `.new-contest`, `.plain-pill`, `.pill-stage`, `.tabs-bar`/`.tab`, `.workspace-crumb`). Narrow screens are handled by plain media queries (`max-width: 720px` / `640px`) — there is no view-mode toggle and no `data-mobile-view` layer.
 - `components/ContestWorkspaceLayout.vue` — the shared shell for every workspace page: `← Back to contests` + sticky tab bar (Divisions · Judges · Players · Input Score · Result Detail) + `<slot/>`. Players/Input-Score/Result-Detail tab targets fall back to the first available division/stage when the current route lacks those params.
 - `views/ContestListView.vue` — rewritten to the accordion layout. Preserves all existing behaviors (create/edit/lock/hide/download) and the mounted data-loading (judges + results). Auto-opens the first contest on load.
 - `views/ContestEditView.vue`, `views/JudgeManagementView.vue`, `views/PlayerRosterView.vue`, `views/ScoreEntryView.vue`, `views/ResultsView.vue` — wrapped in `<ContestWorkspaceLayout>` with the appropriate `active-tab`. Bodies are unchanged.

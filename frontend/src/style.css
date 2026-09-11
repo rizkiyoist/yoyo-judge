@@ -101,7 +101,14 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); }
+/* overscroll-behavior-x stops the browser's own horizontal swipe gesture
+   (back/forward navigation) from competing with the workspace's
+   swipe-between-tabs — without it, a swipe right on the first tab drops
+   you out of the contest entirely. It has to sit on <html>: that's the
+   element the viewport takes its overscroll behavior from, and setting
+   it only on <body> leaves the gesture live. */
+html { overscroll-behavior-x: contain; }
+body { margin: 0; background: var(--bg); overscroll-behavior-x: contain; }
 
 #app {
   max-width: 1120px;
@@ -505,7 +512,6 @@ th.col-deduction {
 .dsb-title { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .dsb-title .div-name { font-weight: 600; font-size: 0.95rem; }
 @media (max-width: 640px) { .division-stage-block { grid-template-columns: 1fr; gap: 10px; } }
-:root[data-mobile-view] .division-stage-block { grid-template-columns: 1fr; gap: 10px; }
 
 /* Top-3 mini-table. Fills the whole division-stage row so the Final Score
    column right-aligns against the Result Detail button on the far right,
@@ -547,6 +553,9 @@ button.icon-only, button.chrome-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; padding: 0; line-height: 1;
 }
+/* The SVG keeps its intrinsic size no matter what the button's content
+   box ends up being — a flex item would otherwise shrink to fit. */
+button.icon-only svg, button.chrome-btn svg { flex: none; }
 button.icon-only.danger:hover {
   background: var(--danger-soft); border-color: var(--danger); color: var(--danger);
 }
@@ -554,60 +563,17 @@ button.icon-only.danger:hover {
 /* Contest workspace shell: sticky tab bar directly under the top nav. */
 .workspace-crumb { display: inline-block; margin-top: 4px; font-size: 0.85rem; color: var(--text-muted); }
 .workspace-crumb:hover { color: var(--text); text-decoration: none; }
-.tabs-bar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: var(--topbar-h, 0px); z-index: 5; margin: 16px -20px 20px; padding: 0 20px; }
-.tabs-inner { max-width: 1120px; margin: 0 auto; display: flex; gap: 0; overflow-x: auto; }
-.tab { padding: 14px 18px; font-size: 0.9rem; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap; text-decoration: none; }
+/* Pins to the very top: the nav scrolls away and the tab bar takes its
+   place, which keeps the most content on screen on short viewports. */
+.tabs-bar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; margin: 16px -20px 20px; padding: 0 20px; }
+/* The -1px overlap that hides `.tabs-bar`'s bottom border under the active
+   tab lives on this strip, not on `.tab`. On `.tab` it overflowed the
+   scroll container by 1px, and since `overflow-x: auto` forces the other
+   axis to compute to `auto` too, that 1px raised a full-height vertical
+   scrollbar. overflow-y is pinned to hidden so it can't come back. */
+.tabs-inner { max-width: 1120px; margin: 0 auto -1px; display: flex; gap: 0; overflow-x: auto; overflow-y: hidden; }
+.tab { padding: 14px 18px; font-size: 0.9rem; color: var(--text-muted); border-bottom: 2px solid transparent; font-weight: 500; white-space: nowrap; text-decoration: none; }
 .tab:hover { color: var(--text); text-decoration: none; }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-
-/* --- Manual mobile-view override (toggled from the nav; independent
-       of viewport width so it also fires on desktop for previewing). --- */
-
-:root[data-mobile-view] {
-  font-size: 19px;
-}
-:root[data-mobile-view] #app {
-  max-width: 640px;
-  padding: 0 14px 48px;
-}
-:root[data-mobile-view] .app-nav {
-  padding: 14px 0;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-:root[data-mobile-view] .app-nav .user {
-  gap: 10px;
-  font-size: 0.9rem;
-  flex-wrap: wrap;
-}
-:root[data-mobile-view] .card {
-  padding: 18px;
-  border-radius: 12px;
-}
-:root[data-mobile-view] button {
-  padding: 10px 14px;
-  min-height: 44px;
-}
-:root[data-mobile-view] input[type='text'],
-:root[data-mobile-view] input[type='email'],
-:root[data-mobile-view] input[type='number'],
-:root[data-mobile-view] input[type='password'],
-:root[data-mobile-view] input[type='search'],
-:root[data-mobile-view] select,
-:root[data-mobile-view] textarea {
-  padding: 10px 12px;
-  font-size: 1rem;
-}
-:root[data-mobile-view] th,
-:root[data-mobile-view] td {
-  padding: 12px 14px;
-}
-:root[data-mobile-view] .score-input-wrap .score-input {
-  padding: 10px 8px;
-  font-size: 1.05rem;
-}
-:root[data-mobile-view] .score-step {
-  min-width: 28px;
-  font-size: 10px;
-}
+/* Tab whose target doesn't exist yet (no division / no stage). */
+.tab-disabled { opacity: 0.4; cursor: not-allowed; }
