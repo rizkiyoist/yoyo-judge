@@ -16,14 +16,14 @@
     3. copies the binary      -> $AppDir
     4. replaces the docroot   -> $Docroot, then chmod o+rX so nginx can
                                 read it back (otherwise the site 403s)
+    5. starts the backend     - `sudo systemctl start yoyojudge`, then
+                                verifies the unit came up (-NoRestart
+                                leaves it stopped instead)
 
-  The backend is left stopped at the end - restarting is a manual step, by
-  design. Pass -Restart to have the script bring it back up instead.
-
-  Stopping, unlike restarting, is not optional: the copy in step 3 fails
-  while the old process still holds the binary open. It must also go
-  through systemctl rather than kill/pkill - the unit is Restart=always,
-  so a killed process comes straight back and takes the binary with it.
+  Stopping is not optional: the copy in step 3 fails while the old process
+  still holds the binary open. It must also go through systemctl rather
+  than kill/pkill - the unit is Restart=always, so a killed process comes
+  straight back and takes the binary with it.
 
   Never touched: yoyojudge.db, env.json, cert.pem/key.pem. They live in
   $AppDir alongside the binary, and only the binary itself is overwritten.
@@ -31,10 +31,10 @@
 .PARAMETER SkipBuild
   Deploy whatever is already in .\bin - don't rebuild first.
 
-.PARAMETER Restart
-  Also start the backend again once the copy is done. Off by default: the
-  frontend is live as soon as the copy finishes, but the API stays down
-  until you run `sudo systemctl start yoyojudge` yourself.
+.PARAMETER NoRestart
+  Leave the backend stopped after copying, instead of starting it. The
+  frontend is live either way, but the API stays down until you run
+  `sudo systemctl start yoyojudge` yourself.
 
 .PARAMETER DryRun
   Print every command that would run, locally and remotely, and connect to
@@ -43,12 +43,12 @@
 .EXAMPLE
   .\deploy.ps1
   .\deploy.ps1 -SkipBuild
-  .\deploy.ps1 -Restart
+  .\deploy.ps1 -NoRestart
   .\deploy.ps1 -DryRun
 #>
 param(
     [switch]$SkipBuild,
-    [switch]$Restart,
+    [switch]$NoRestart,
     [switch]$DryRun,
     [string]$Server = 'rizki@103.134.154.210',
     [string]$AppDir = '/home/rizki/yoyojudge',
@@ -132,8 +132,8 @@ exit 0
     # back up without making anything executable that wasn't already.
     Invoke-Remote -Describe 'Fixing docroot permissions' -Command "chmod -R o+rX $Docroot"
 
-    if (-not $Restart) {
-        Write-Host "==> Backend left stopped - start it yourself:" -ForegroundColor Yellow
+    if ($NoRestart) {
+        Write-Host "==> Backend left stopped (-NoRestart) - start it with:" -ForegroundColor Yellow
         Write-Host "      ssh $Server `"sudo systemctl start $Service`"" -ForegroundColor DarkGray
     }
     else {

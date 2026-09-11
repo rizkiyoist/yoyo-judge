@@ -42,9 +42,9 @@ Copy to the server: the binary (`bin/yoyo-judge-linux-amd64`), `cert.pem`/`key.p
 .\deploy.ps1
 ```
 
-That's the whole deploy: it builds, stops the backend, copies the binary and the frontend, and fixes docroot permissions. It never prompts, because authentication is by SSH key (see below). Useful switches: `-SkipBuild` (deploy what's already in `.\bin`), `-Restart`, `-DryRun` (print every local and remote command, connect to nothing).
+That's the whole deploy: it builds, stops the backend, copies the binary and the frontend, fixes docroot permissions, and starts the backend again. It never prompts, because authentication is by SSH key (see below). Useful switches: `-SkipBuild` (deploy what's already in `.\bin`), `-NoRestart`, `-DryRun` (print every local and remote command, connect to nothing).
 
-**It leaves the backend stopped** - starting it again is yours to do (`sudo systemctl start yoyojudge`). Stopping, though, is not optional and the script always does it: `scp` fails with `ETXTBSY` ("text file busy") while the old process still holds the binary open. Pass `-Restart` if you'd rather the script bring it back up for you.
+Stopping and starting both go through `systemctl`, and the stop is not optional: `scp` fails with `ETXTBSY` ("text file busy") while the old process still holds the binary open. Pass `-NoRestart` to leave the backend down at the end — the frontend goes live either way, but the API stays down until you start it yourself.
 
 Nothing in the deploy touches `yoyojudge.db`, `env.json`, or `cert.pem`/`key.pem` — they sit in `/home/rizki/yoyojudge` next to the binary, and only the binary itself is overwritten.
 
