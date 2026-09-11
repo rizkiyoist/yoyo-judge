@@ -36,17 +36,66 @@ Produces `bin/yoyo-judge-linux-amd64` (and `.exe`). The frontend is embedded —
 
 Copy to the server: the binary (`bin/yoyo-judge-linux-amd64`), `cert.pem`/`key.pem` if using file-based TLS, and `env.json` if using that instead of real env vars for Google credentials. Everything else (frontend, config) is embedded or set via env vars. `yoyojudge.db` is created on first run — don't overwrite it on redeploy, it's your real data.
 
-### Copy to the server
+### One command
 
-No CI — the server has no git access, so this is just two commands run by hand from the repo root after `.\build.ps1`. You'll be prompted for your normal SSH credentials/passphrase each time; nothing here changes how you authenticate.
+```powershell
+.\deploy.ps1
+```
 
-Stop the backend process first (overwriting it in place while it's still running fails with `ETXTBSY`, "text file busy"), then copy both the binary and the frontend (fully replacing the docroot's contents, same as deleting and re-pasting by hand) in one line. The trailing `chmod` is required: `rm -rf` + `scp -r` recreates the docroot under your own user with whatever your shell's umask leaves it at, which can end up unreadable to nginx's user (`o+rX` opens directories/files back up to everyone without making anything executable that wasn't already) — otherwise the site 403s even though the files are all there:
+That's the whole deploy: it builds, stops the backend, copies the binary and the frontend, and fixes docroot permissions. It never prompts, because authentication is by SSH key (see below). Useful switches: `-SkipBuild` (deploy what's already in `.\bin`), `-Restart`, `-DryRun` (print every local and remote command, connect to nothing).
+
+**It leaves the backend stopped** - starting it again is yours to do (`sudo systemctl start yoyojudge`). Stopping, though, is not optional and the script always does it: `scp` fails with `ETXTBSY` ("text file busy") while the old process still holds the binary open. Pass `-Restart` if you'd rather the script bring it back up for you.
+
+Nothing in the deploy touches `yoyojudge.db`, `env.json`, or `cert.pem`/`key.pem` — they sit in `/home/rizki/yoyojudge` next to the binary, and only the binary itself is overwritten.
+
+Two details the script handles that are easy to get wrong by hand:
+
+- **Stopping the backend through systemctl, not `kill`.** The unit is `Restart=always`, so a killed process comes straight back within seconds and re-takes the binary. `systemctl stop` is synchronous and suppresses the restart; the script then verifies the unit really is inactive before overwriting anything.
+- **`chmod -R o+rX` on the docroot afterwards is required.** `rm -rf` + `scp -r` recreate it under your umask, which can leave it unreadable to nginx's user — the site then 403s even though every file is there.
+
+### SSH key (why nothing prompts)
+
+The server trusts `~/.ssh/id_ed25519`, so `ssh`/`scp` to `rizki@103.134.154.210` run unattended. The key has no passphrase, so this survives a reboot with no `ssh-agent` involved. Every call in `deploy.ps1` passes `-o BatchMode=yes` on purpose: if the key ever stops working, the script fails immediately instead of blocking on a password prompt you can't see.
+
+To authorize the key again (new machine, or a rebuilt server), from PowerShell:
+
+```powershell
+ssh-keygen -t ed25519 -C "yoyo-judge-deploy"   # only if ~/.ssh/id_ed25519 doesn't exist yet; Enter at every prompt
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh rizki@103.134.154.210 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+That asks for the password one last time. In `cmd.exe` it's `%USERPROFILE%` instead of `$env:USERPROFILE`.
+
+### Running the backend (systemd)
+
+The backend runs as a systemd service, not in a `screen` session. The unit lives in this repo at [`deploy/yoyojudge.service`](deploy/yoyojudge.service) and is installed at `/etc/systemd/system/yoyojudge.service`.
+
+```bash
+sudo systemctl start yoyojudge      # also: stop / restart
+systemctl status yoyojudge
+journalctl -u yoyojudge -f          # logs; replaces scrolling a screen buffer
+```
+
+It's `enable`d, so it starts on boot, and `Restart=always`, so it comes back within ~3s if it crashes. `WorkingDirectory=/home/rizki/yoyojudge` is load-bearing: `env.json`, `cert.pem` and `key.pem` are all read relative to it.
+
+To reinstall the unit after editing it:
+
+```powershell
+scp deploy/yoyojudge.service rizki@103.134.154.210:/tmp/
+ssh rizki@103.134.154.210 "sudo mv /tmp/yoyojudge.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart yoyojudge"
+```
+
+### Doing it by hand
+
+If you'd rather not use the script, this is the same copy step as one line (stop the service first, and start it again afterwards):
 
 ```bash
 scp bin/yoyo-judge-linux-amd64 rizki@103.134.154.210:/home/rizki/yoyojudge/yoyo-judge-linux-amd64 && ssh rizki@103.134.154.210 "rm -rf /var/www/html/yoyojudge/*" && scp -r bin/static/. rizki@103.134.154.210:/var/www/html/yoyojudge/ && ssh rizki@103.134.154.210 "chmod -R o+rX /var/www/html/yoyojudge"
 ```
 
-Then SSH in as usual to restart the backend in its screen session — none of this touches `yoyojudge.db`, `env.json`, or `cert.pem`/`key.pem`, since those all live outside both destination paths.
+### Backend configuration
+
+The backend reads these at startup. In production they come from `env.json` in `/home/rizki/yoyojudge` (read relative to the working directory, which is why the unit sets `WorkingDirectory`); real environment variables always win over `env.json`. To set them as real env vars under systemd, add an `EnvironmentFile=` line to the unit rather than exporting them in a shell.
 
 ```bash
 # Required — register these in Google Cloud Console first

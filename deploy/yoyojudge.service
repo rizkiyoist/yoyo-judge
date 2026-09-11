@@ -1,0 +1,39 @@
+# systemd unit for the yoyo-judge backend — replaces running it by hand in
+# a `screen` session. Install:
+#
+#   scp deploy/yoyojudge.service rizki@103.134.154.210:/tmp/
+#   ssh rizki@103.134.154.210 "sudo mv /tmp/yoyojudge.service /etc/systemd/system/ \
+#     && sudo systemctl daemon-reload && sudo systemctl enable --now yoyojudge"
+#
+# Then: systemctl status yoyojudge | sudo systemctl restart yoyojudge |
+#       journalctl -u yoyojudge -f
+
+[Unit]
+Description=yoyo-judge IYYF scoring backend
+Documentation=https://github.com/rizkiyoist/yoyo-judge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rizki
+Group=rizki
+
+# Must match where env.json, cert.pem and key.pem live: the app reads all
+# three relative to its working directory, so this line is as load-bearing
+# as ExecStart.
+WorkingDirectory=/home/rizki/yoyojudge
+ExecStart=/home/rizki/yoyojudge/yoyo-judge-linux-amd64
+
+# The one thing screen never did: bring it back up if it dies, and start it
+# on boot (that part comes from `systemctl enable`).
+Restart=always
+RestartSec=3
+
+# Logs go to journald instead of scrolling off a detached screen buffer.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=yoyojudge
+
+[Install]
+WantedBy=multi-user.target
