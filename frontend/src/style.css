@@ -1,45 +1,59 @@
-/* Design system: shadcn-inspired minimal. Light/dark parity via
-   [data-theme='dark'] on <html>. Class names below (.card, .btn, .badge,
-   .field, .row, .muted, .save-status, .badge-year, .col-*) are consumed
-   throughout the .vue templates — keep them stable. */
+/* Design system: "Crisp" — flat bordered surfaces, segmented tabs, zebra
+   tables, status dots. Structure carries the hierarchy, not shadow.
+   Light/dark parity via [data-theme='dark'] on <html>. Class names below
+   (.card, .btn, .badge, .field, .row, .muted, .save-status, .badge-year,
+   .col-*) are consumed throughout the .vue templates — keep them stable.
+   Fonts: Instrument Sans (UI) + JetBrains Mono (figures), loaded in
+   index.html. */
 
 :root {
   /* Surfaces */
-  --bg: #f7f7f8;
+  --bg: #f4f5f7;
   --surface: #ffffff;
-  --surface-hover: #f4f4f5;
-  --bg-alt: #f4f4f5;
+  --surface-hover: #f7f8fa;
+  --bg-alt: #eceef2;
 
   /* Text */
-  --text: #09090b;
-  --text-muted: #71717a;
-  --text-strong: #09090b;
+  --text: #12141a;
+  --text-muted: #626875;
+  --text-strong: #0b0d12;
 
   /* Borders */
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
-  --ring: rgba(124, 58, 237, 0.22);
+  --border: #dcdfe6;
+  --border-strong: #c4c9d4;
+  --ring: rgba(109, 40, 217, 0.25);
 
   /* Brand & status */
-  --accent: #7c3aed;
-  --accent-hover: #6d28d9;
+  --accent: #6d28d9;
+  --accent-hover: #5b21b6;
   --accent-contrast: #ffffff;
-  --accent-soft: rgba(124, 58, 237, 0.08);
+  --accent-soft: rgba(109, 40, 217, 0.08);
   --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.1);
   --success: #16a34a;
   --success-soft: rgba(22, 163, 74, 0.12);
+  --warn: #b45309;
 
-  /* Elevation */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  /* Stage pills */
+  --prelim: #2563eb;
+
+  /* Top-3 rank numerals */
+  --rank-muted: var(--text-muted);
+
+  /* Elevation — flat by design; one hairline lift for the active tab. */
+  --shadow-sm: none;
+  --shadow: 0 1px 2px rgb(10 14 30 / 0.08);
 
   /* Shape */
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-btn: 6px;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-btn: 7px;
 
-  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Type */
+  --font-body: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  font: 14.5px/1.5 var(--font-body);
   color: var(--text);
   background: var(--bg);
   color-scheme: light;
@@ -61,30 +75,33 @@
 }
 
 :root[data-theme='dark'] {
-  --bg: #0b0b0f;
-  --surface: #16161d;
-  --surface-hover: #1e1e28;
-  --bg-alt: #1e1e28;
+  --bg: #0e1015;
+  --surface: #161920;
+  --surface-hover: #1c2029;
+  --bg-alt: #1e222c;
 
-  --text: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --text-strong: #fafafa;
+  --text: #eef0f5;
+  --text-muted: #9aa1b0;
+  --text-strong: #ffffff;
 
-  --border: #2a2a35;
-  --border-strong: #3a3a48;
-  --ring: rgba(167, 139, 250, 0.3);
+  --border: #262b36;
+  --border-strong: #38404f;
+  --ring: rgba(167, 139, 250, 0.32);
 
   --accent: #a78bfa;
   --accent-hover: #c4b5fd;
   --accent-contrast: #16161d;
-  --accent-soft: rgba(167, 139, 250, 0.12);
+  --accent-soft: rgba(167, 139, 250, 0.13);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
   --success: #4ade80;
   --success-soft: rgba(74, 222, 128, 0.12);
+  --warn: #fcd34d;
 
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --prelim: #93c5fd;
+
+  --shadow-sm: none;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5);
 
   --tex-color: #c4b5fd;
   --tex-bg-header: rgba(196, 181, 253, 0.18);
@@ -108,7 +125,18 @@
    element the viewport takes its overscroll behavior from, and setting
    it only on <body> leaves the gesture live. */
 html { overscroll-behavior-x: contain; }
-body { margin: 0; background: var(--bg); overscroll-behavior-x: contain; }
+body {
+  margin: 0;
+  background: var(--bg);
+  overscroll-behavior-x: contain;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Browser surfaces themed from the palette. */
+::selection { background: var(--accent-soft); color: var(--text-strong); }
+:root[data-theme='dark'] ::selection { background: rgba(167, 139, 250, 0.35); }
+input { caret-color: var(--accent); }
+* { scrollbar-color: var(--border-strong) transparent; }
 
 #app {
   max-width: 1120px;
@@ -119,11 +147,11 @@ body { margin: 0; background: var(--bg); overscroll-behavior-x: contain; }
 h1, h2, h3, h4 {
   line-height: 1.25;
   color: var(--text-strong);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.025em;
 }
-h1 { font-size: 1.5rem; font-weight: 600; }
-h2 { font-size: 1.125rem; font-weight: 600; }
-h3 { font-size: 0.95rem; font-weight: 600; }
+h1 { font-size: 1.45rem; font-weight: 650; margin-block: 0.67em 0.8em; }
+h2 { font-size: 1rem; font-weight: 650; letter-spacing: -0.02em; }
+h3 { font-size: 0.92rem; font-weight: 650; letter-spacing: -0.015em; }
 
 a {
   color: var(--accent);
@@ -131,13 +159,21 @@ a {
 }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
+/* Figures read as figures: mono, tabular. */
+.num,
+.score-input,
+.top3-mini td.score-cell {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* --- Nav --- */
 
 .app-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 0;
+  padding: 14px 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 28px;
 }
@@ -147,7 +183,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   font-size: 0.95rem;
   text-decoration: none;
   color: var(--text-strong);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .app-nav .user {
@@ -169,10 +205,10 @@ button {
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: var(--radius-btn);
-  padding: 7px 12px;
+  padding: 6px 11px;
   color: var(--text);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 550;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   line-height: 1.25;
 }
@@ -180,9 +216,10 @@ button:hover {
   background: var(--surface-hover);
   border-color: var(--border-strong);
 }
-button:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button.primary {
@@ -235,8 +272,9 @@ textarea:focus {
   box-shadow: 0 0 0 3px var(--ring);
 }
 input::placeholder { color: var(--text-muted); }
+input[type='checkbox'] { accent-color: var(--accent); }
 
-/* --- Tables --- */
+/* --- Tables: hairline rows, zebra stripes, no grid. --- */
 
 table {
   border-collapse: collapse;
@@ -245,8 +283,9 @@ table {
 }
 
 th, td {
-  border: 1px solid var(--border);
-  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 9px 12px;
   text-align: left;
   vertical-align: top;
 }
@@ -255,21 +294,31 @@ th {
   background: var(--bg-alt);
   font-weight: 600;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.07em;
+  border-bottom-color: var(--border-strong);
 }
 
-/* --- Card --- */
+tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--bg-alt) 45%, transparent); }
+tbody tr:hover td { background: var(--accent-soft); }
+
+/* --- Card: flat, bordered. A direct-child <h2> becomes a ruled header. --- */
 
 .card {
+  --pad-x: 20px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 24px;
+  padding: 18px var(--pad-x);
   margin-bottom: 20px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow-x: auto;
+}
+.card > h2 {
+  margin: 0 calc(-1 * var(--pad-x)) 14px;
+  padding: 0 var(--pad-x) 10px;
+  border-bottom: 1px solid var(--border);
 }
 
 /* --- Form field & row --- */
@@ -316,17 +365,19 @@ th {
   font-weight: 500;
 }
 
+/* Year chip: neutral tile, not an accent pill — the accent is reserved for
+   actions and the current selection. */
 .badge-year {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--bg-alt);
+  color: var(--text);
   font-size: 0.75rem;
-  font-weight: 700;
-  border: 1px solid transparent;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
 }
 
 .error {
@@ -340,10 +391,18 @@ th {
   display: inline-flex;
   align-items: center;
   padding: 2px 9px;
-  border-radius: 999px;
+  border-radius: 6px;
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+.save-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
 }
 .save-status--saved {
   color: var(--success);
@@ -368,9 +427,10 @@ th {
   -moz-appearance: textfield;
 }
 
-/* --- Score number input: <input> + stacked ▲▼ steppers on the right.
-      Used in score entry / override views. `.score-input` also anchors
-      the ArrowUp/ArrowDown cross-input focus navigation. --- */
+/* --- Score number input: <input> + stacked chevron steppers on the right.
+      The steppers stay collapsed until the control is hovered or focused,
+      so a grid of scores reads as clean boxes. `.score-input` also anchors
+      the arrow-key cross-input focus navigation. --- */
 
 .score-input-wrap {
   display: inline-flex;
@@ -378,36 +438,47 @@ th {
   vertical-align: middle;
 }
 .score-input-wrap .score-input {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  border-right-width: 0;
   text-align: center;
   padding: 6px 8px;
-  font-variant-numeric: tabular-nums;
-  font-size: 0.95rem;
-}
-.score-input-wrap .score-input:focus {
-  /* Focus ring only around the input side, so the steppers keep their
-     shared right border and don't visually detach. */
-  box-shadow: inset 0 0 0 2px var(--ring);
-  border-right-width: 0;
+  font-size: 0.88rem;
 }
 .score-steppers {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
+  width: 0;
+  border: 0 solid var(--border);
   border-radius: var(--radius-btn);
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   overflow: hidden;
   background: var(--surface);
+  transition: width 0.12s ease;
+}
+.score-input-wrap:hover .score-steppers,
+.score-input-wrap:focus-within .score-steppers {
+  width: 24px;
+  border-width: 1px;
+}
+/* Square off the input's right edge only while the steppers are showing,
+   so they read as one control. */
+.score-input-wrap:hover .score-input,
+.score-input-wrap:focus-within .score-input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 0;
+}
+.score-input-wrap .score-input:focus {
+  /* Ring around the input side only, so the steppers keep their shared
+     right border and don't visually detach. */
+  box-shadow: inset 0 0 0 2px var(--ring);
 }
 .score-step {
-  padding: 0 6px;
-  min-width: 22px;
-  height: 50%;
-  font-size: 8px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 0;
+  min-width: 24px;
   border: 0;
   border-radius: 0;
   background: var(--surface);
@@ -415,10 +486,11 @@ th {
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
+.score-step svg { flex: none; }
 .score-step + .score-step { border-top: 1px solid var(--border); }
 .score-step:hover:not(:disabled) {
-  background: var(--surface-hover);
-  color: var(--text-strong);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .score-step:disabled {
   opacity: 0.5;
@@ -463,15 +535,15 @@ th.col-deduction {
   color: var(--deduction-color);
   background: var(--deduction-bg-header);
 }
+td.final-cell { font-weight: 700; color: var(--text-strong); }
 
 /* --- Mobile --- */
 
 @media (max-width: 720px) {
   #app { padding: 0 14px 40px; }
-  .card { padding: 16px; border-radius: 10px; }
-  .app-nav { padding: 14px 0; margin-bottom: 20px; }
-  h1 { font-size: 1.35rem; }
-  h2 { font-size: 1.05rem; }
+  .card { --pad-x: 16px; padding: 16px var(--pad-x); }
+  .app-nav { padding: 12px 0; margin-bottom: 20px; }
+  h1 { font-size: 1.3rem; }
   th, td { padding: 8px 10px; font-size: 0.85rem; }
   button { padding: 8px 12px; }
 }
@@ -480,58 +552,65 @@ th.col-deduction {
        Accordion contest list on the main page, tabbed shell for the
        contest workspace, plain-text status pills. --- */
 
+/* Status pill: dot + text. */
 .plain-pill {
-  display: inline-flex; align-items: center;
-  padding: 2px 10px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 9px 2px 8px; border-radius: 999px;
   font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em;
-  background: var(--bg-alt); color: var(--text-muted);
+  background: transparent; color: var(--text-muted);
   border: 1px solid var(--border);
 }
+.plain-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex: none; }
+/* Stage pill: outlined, colored by stage. */
 .pill-stage {
   display: inline-flex; align-items: center;
-  padding: 2px 10px; border-radius: 999px;
+  padding: 1px 9px; border-radius: 999px;
   font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em;
+  background: transparent; border: 1px solid currentColor;
 }
-.pill-stage.prelim { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
-.pill-stage.final { background: var(--accent-soft); color: var(--accent); }
-:root[data-theme='dark'] .pill-stage.prelim { color: #93c5fd; background: rgba(147, 197, 253, 0.18); }
+.pill-stage.prelim { color: var(--prelim); }
+.pill-stage.final { color: var(--accent); }
 
-/* Accordion contest card on the main page. */
-.contest-card { padding: 16px 20px; margin-bottom: 12px; }
-.contest-head { display: flex; align-items: center; gap: 12px; cursor: pointer; flex-wrap: wrap; }
-.contest-head .caret { color: var(--text-muted); transition: transform 0.15s; width: 12px; display: inline-block; text-align: center; }
+/* Accordion contest card on the main page. The whole header is the click
+   target; the body sits on a faintly tinted floor. */
+.contest-card { padding: 0; margin-bottom: 10px; overflow: visible; }
+.contest-head { display: flex; align-items: center; gap: 12px; cursor: pointer; flex-wrap: wrap; padding: 14px 16px; border-radius: var(--radius); transition: background 0.12s; }
+.contest-head:hover { background: var(--surface-hover); }
+.contest-card.is-open .contest-head { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.contest-head .caret { color: var(--text-muted); transition: transform 0.15s; width: 24px; height: 24px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-alt); display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .contest-card.is-open .contest-head .caret { transform: rotate(90deg); }
 .contest-head .info { flex: 1; min-width: 0; }
-.contest-head .title { font-weight: 600; font-size: 1.02rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.contest-head .title { font-weight: 650; font-size: 1.02rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; letter-spacing: -0.02em; }
 .contest-head .meta { color: var(--text-muted); font-size: 0.82rem; margin-top: 2px; }
 .contest-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.contest-body { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.contest-body { display: none; margin: 0; padding: 4px 16px 14px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-alt) 40%, var(--surface)); border-radius: 0 0 var(--radius) var(--radius); }
 .contest-card.is-open .contest-body { display: block; }
 .division-stage-block { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
-.division-stage-block:last-child { border-bottom: none; }
+.division-stage-block:last-child { border-bottom: none; padding-bottom: 0; }
 .dsb-title { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.dsb-title .div-name { font-weight: 600; font-size: 0.95rem; }
+.dsb-title .div-name { font-weight: 650; font-size: 0.95rem; letter-spacing: -0.015em; }
 @media (max-width: 640px) { .division-stage-block { grid-template-columns: 1fr; gap: 10px; } }
 
-/* Top-3 mini-table. Fills the whole division-stage row so the Final Score
-   column right-aligns against the Result Detail button on the far right,
-   instead of clustering on the left with dead space in between. */
-.top3-mini { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+/* Top-3 mini-table. Plain numerals, no medals: place 1 takes the accent,
+   the rest stay muted. Final Score right-aligns against the Result Detail
+   button column. Rows opt out of the global zebra/hover. */
+.top3-mini { width: 100%; max-width: 460px; font-size: 0.85rem; border-collapse: collapse; }
 .top3-mini th, .top3-mini td { padding: 3px 8px; border: none; text-align: left; vertical-align: middle; background: transparent; }
+.top3-mini tbody tr:hover td, .top3-mini tbody tr:nth-child(even) td { background: transparent; }
 .top3-mini thead th { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
-.top3-mini tbody td { padding-top: 4px; padding-bottom: 4px; }
+.top3-mini tbody tr + tr td { border-top: 1px solid var(--border); }
+.top3-mini tbody td { padding-top: 5px; padding-bottom: 5px; }
 .top3-mini td.rank-cell { width: 24px; padding-right: 0; }
-.top3-mini th.score-hd, .top3-mini td.score-cell { text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; white-space: nowrap; }
-.rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: var(--bg-alt); color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.rank-badge.gold { background: #fef3c7; color: #92400e; }
-.rank-badge.silver { background: #e5e7eb; color: #374151; }
-.rank-badge.bronze { background: #fed7aa; color: #9a3412; }
+.top3-mini th.score-hd, .top3-mini td.score-cell { text-align: right; white-space: nowrap; }
+.top3-mini td.score-cell { color: var(--text); font-weight: 600; font-size: 0.8rem; }
+.rank-badge { font-family: var(--font-mono); font-size: 0.76rem; font-weight: 700; color: var(--rank-muted); font-variant-numeric: tabular-nums; }
+.rank-badge.gold { color: var(--accent); }
 .no-results { color: var(--text-muted); font-style: italic; font-size: 0.82rem; }
 
 /* Create-contest form banner on the main page. */
 .new-contest {
   display: flex; gap: 8px; align-items: center; padding: 14px 18px;
-  background: var(--surface); border: 1px dashed var(--border-strong);
+  background: transparent; border: 1px dashed var(--border-strong);
   border-radius: var(--radius); margin-bottom: 22px; flex-wrap: wrap;
 }
 .new-contest input[type="text"] { flex: 1; min-width: 220px; }
@@ -560,20 +639,39 @@ button.icon-only.danger:hover {
   background: var(--danger-soft); border-color: var(--danger); color: var(--danger);
 }
 
-/* Contest workspace shell: sticky tab bar directly under the top nav. */
+/* Contest workspace shell: sticky segmented tab control directly under the
+   top nav. */
 .workspace-crumb { display: inline-block; margin-top: 4px; font-size: 0.85rem; color: var(--text-muted); }
 .workspace-crumb:hover { color: var(--text); text-decoration: none; }
 /* Pins to the very top: the nav scrolls away and the tab bar takes its
    place, which keeps the most content on screen on short viewports. */
-.tabs-bar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; margin: 16px -20px 20px; padding: 0 20px; }
-/* The -1px overlap that hides `.tabs-bar`'s bottom border under the active
-   tab lives on this strip, not on `.tab`. On `.tab` it overflowed the
-   scroll container by 1px, and since `overflow-x: auto` forces the other
-   axis to compute to `auto` too, that 1px raised a full-height vertical
-   scrollbar. overflow-y is pinned to hidden so it can't come back. */
-.tabs-inner { max-width: 1120px; margin: 0 auto -1px; display: flex; gap: 0; overflow-x: auto; overflow-y: hidden; }
-.tab { padding: 14px 18px; font-size: 0.9rem; color: var(--text-muted); border-bottom: 2px solid transparent; font-weight: 500; white-space: nowrap; text-decoration: none; }
-.tab:hover { color: var(--text); text-decoration: none; }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tabs-bar { background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; margin: 12px -20px 20px; padding: 0 20px; }
+/* overflow-y is pinned to hidden: with only overflow-x: auto the other axis
+   computes to auto too, and any vertical overflow raises a scrollbar. */
+.tabs-inner { max-width: 1120px; margin: 0 auto; padding: 10px 0; display: flex; gap: 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.tabs-inner::-webkit-scrollbar { display: none; }
+.tab { padding: 7px 14px; font-size: 0.86rem; color: var(--text-muted); border-radius: 7px; font-weight: 550; white-space: nowrap; text-decoration: none; }
+.tab:hover { color: var(--text); background: var(--bg-alt); text-decoration: none; }
+.tab.active { background: var(--surface); color: var(--text-strong); font-weight: 650; box-shadow: 0 0 0 1px var(--border-strong), var(--shadow); }
+.tab.active::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: 1px; }
+/* The Results page widens #app (see ResultsView.vue); let the tab strip
+   follow so the first tab lines up with the content edge. */
+:root[data-wide-page] .tabs-inner { max-width: none; }
 /* Tab whose target doesn't exist yet (no division / no stage). */
 .tab-disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- Login --- */
+
+.login-card { max-width: 420px; margin: 40px auto; }
+
+/* Google sign-in button: neutral surface with the full-color G, per
+   Google's branding guidelines. Deliberately not the accent color. */
+.google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 10px 16px; border: 1px solid var(--border-strong); border-radius: var(--radius-btn);
+  background: var(--surface); color: var(--text-strong);
+  font-size: 0.92rem; font-weight: 600; line-height: 1.25;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.google-btn:hover { background: var(--surface-hover); border-color: var(--text-muted); text-decoration: none; }
+.google-btn svg { flex: none; }

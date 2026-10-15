@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import Icon from './Icon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -141,7 +142,7 @@ function onBlur() {
         @mousedown.prevent
         @click="bump(1)"
       >
-        ▲
+        <Icon name="chevron-up" :size="10" />
       </button>
       <button
         type="button"
@@ -152,7 +153,7 @@ function onBlur() {
         @mousedown.prevent
         @click="bump(-1)"
       >
-        ▼
+        <Icon name="chevron-down" :size="10" />
       </button>
     </div>
   </div>

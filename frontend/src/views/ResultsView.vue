@@ -139,16 +139,16 @@ onUnmounted(() => document.documentElement.removeAttribute('data-wide-page'))
               <td>{{ r.place }}</td>
               <td>{{ players.find((p) => p.id === r.playerId)?.number }}</td>
               <td>{{ r.name }}</td>
-              <td>{{ r.technicalExecution.toFixed(2) }}</td>
-              <td v-for="cat in categories" :key="cat.name">
+              <td class="num">{{ r.technicalExecution.toFixed(2) }}</td>
+              <td v-for="cat in categories" :key="cat.name" class="num">
                 {{ (r.categoryScores[cat.name] ?? 0).toFixed(2) }}
               </td>
-              <td>{{ categoriesTotal(r).toFixed(2) }}</td>
-              <td>{{ r.evaluationTotal.toFixed(2) }}</td>
-              <td>-{{ (r.deductionTotals.Stop ?? 0).toFixed(2) }}</td>
-              <td>-{{ (r.deductionTotals.Discard ?? 0).toFixed(2) }}</td>
-              <td>-{{ (r.deductionTotals.Cut ?? r.deductionTotals.Detach ?? 0).toFixed(2) }}</td>
-              <td><strong>{{ r.finalScore.toFixed(2) }}</strong></td>
+              <td class="num">{{ categoriesTotal(r).toFixed(2) }}</td>
+              <td class="num">{{ r.evaluationTotal.toFixed(2) }}</td>
+              <td class="num">-{{ (r.deductionTotals.Stop ?? 0).toFixed(2) }}</td>
+              <td class="num">-{{ (r.deductionTotals.Discard ?? 0).toFixed(2) }}</td>
+              <td class="num">-{{ (r.deductionTotals.Cut ?? r.deductionTotals.Detach ?? 0).toFixed(2) }}</td>
+              <td class="num final-cell">{{ r.finalScore.toFixed(2) }}</td>
               <td><button @click="toggle(r.playerId)">{{ expanded[r.playerId] ? 'Hide' : 'Details' }}</button></td>
             </tr>
             <tr v-if="expanded[r.playerId]">

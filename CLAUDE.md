@@ -18,3 +18,4 @@ When making UI changes, read `docs/LAYOUT_SPEC.md` first and update it if the de
 `frontend/src/api/mock.ts` is used when `VITE_USE_MOCK=true`. `crypto.randomUUID` requires a secure context, so the mock's `uid()` falls back to `Math.random().toString(16)` — keep that fallback so plain-HTTP LAN previews (`http://192.168.x.x:5174`) still boot.
 
 Use chrome to validate any frontend changes
+Use impeccable plugin and frontend skill

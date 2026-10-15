@@ -305,8 +305,8 @@ async function createContest() {
         <div class="title">
           <span>{{ contest.name }}</span>
           <span class="badge-year">{{ contest.year }}</span>
-          <span v-if="contest.locked" class="plain-pill" title="Locked by head judge">Locked</span>
-          <span v-if="contest.hidden" class="plain-pill" title="Hidden from the general contest list — only superadmins can see it">Hidden</span>
+          <span v-if="contest.locked" class="plain-pill" title="Locked by head judge"><i class="dot" />Locked</span>
+          <span v-if="contest.hidden" class="plain-pill" title="Hidden from the general contest list — only superadmins can see it"><i class="dot" />Hidden</span>
         </div>
         <div class="meta">
           {{ contest.divisions.length }} division{{ contest.divisions.length === 1 ? '' : 's' }}

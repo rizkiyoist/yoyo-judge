@@ -1189,6 +1189,46 @@ reference was available.
   repo-root `dist/`; the compiled binary served the embedded frontend
   correctly (`GET /yoyojudge/` → `200`, real `index.html`).
 
+### "Crisp" visual refresh + real Google sign-in button — new, 2026-10-15
+
+Three look-only variants of the existing UI were mocked (Refined / Crisp /
+Stage); **Crisp** was chosen and ported into `frontend/src/style.css`. Layout,
+class names and behavior are unchanged — this is a token + component-rule
+swap, plus a few small template touches:
+
+- **Type:** Instrument Sans (UI) + JetBrains Mono (figures: score inputs, the
+  top-3 score column, `td.num` in Result Detail). Loaded from Google Fonts in
+  `frontend/index.html` with system fallbacks; the page `<title>` is now
+  `yoyo-judge` (was `frontend`).
+- **Surfaces:** flat bordered cards (no shadow); a direct-child `<h2>` of
+  `.card` becomes a ruled header (`.card > h2`, bled to the card edge via
+  `--pad-x`). Accent is `#6d28d9` light / `#a78bfa` dark and is reserved for
+  actions and the current selection (the year chip is now a neutral tile).
+- **Tables:** hairline rows + zebra stripes + accent-tinted hover, no grid.
+  `.top3-mini` opts out of zebra/hover and uses plain numerals (place 1 in the
+  accent) instead of the old gold/silver/bronze medal badges.
+- **Tabs:** `.tabs-bar` is now a segmented control (active tab = raised tile
+  with an accent dot). On the wide Result Detail page `.tabs-inner` follows
+  `#app`'s width (`:root[data-wide-page]`) so the first tab lines up with the
+  content edge.
+- **Status:** `.plain-pill` is dot + text (`<i class="dot">` added in
+  `ContestListView.vue`); `.pill-stage` is outlined; `.save-status` gets a dot.
+- **Score input:** the steppers stay collapsed until the control is hovered
+  or focused, and the `▲▼` glyphs were replaced with `Icon.vue` chevrons.
+- **Login:** the "Continue with Google" link was an `<a class="button primary">`
+  but no `.button` rule exists, so it rendered as a plain purple text link.
+  It is now `.google-btn` — a neutral surface button with the full-color
+  Google "G" from the new `components/GoogleLogo.vue` (a brand asset, so it is
+  the one deliberate exception to the monotone-icons rule).
+
+Verified in Chrome against the mock API (`VITE_USE_MOCK=true`): contest list,
+all workspace tabs, score inputs and Result Detail in light and dark, the
+login page in both themes, and a 390px mobile pass. `vue-tsc` + `vite build`
+pass; the Impeccable detector reports no findings.
+
+Not done: the Judges/Players views weren't restyled individually (they pick
+up the global rules), and nothing was checked on a real device.
+
 ## What's not implemented yet
 
 - No UI exposes the source workbook's `ADJ-CLICK`/`ADJ-GIVEN` intermediate

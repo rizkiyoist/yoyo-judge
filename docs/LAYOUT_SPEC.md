@@ -5,7 +5,7 @@ Source of truth for the redesigned UI. When the app under `frontend/src/` disagr
 ## Global chrome
 
 - **Top bar** on every page: `yoyo-judge` wordmark (no icon, plain text) on the left, then right-aligned: theme button, user name, "Log out". Scrolls away with the page — it is not sticky; the workspace tab bar takes the top instead.
-- **Theme toggle**: 🌙 in light mode, ☀️ in dark mode. Persists in `localStorage`. Palette matches `frontend/src/style.css` (accent `#7c3aed` light / `#a78bfa` dark).
+- **Theme toggle**: 🌙 in light mode, ☀️ in dark mode. Persists in `localStorage`. Palette matches `frontend/src/style.css` ("Crisp": accent `#6d28d9` light / `#a78bfa` dark; Instrument Sans + JetBrains Mono).
 - **No emojis in status labels** (badges/pills). Say "Locked" and "Hidden", not "🔒 Locked" / "🙈 Hidden".
 
 ## Main page — contest list
@@ -17,7 +17,7 @@ Source of truth for the redesigned UI. When the app under `frontend/src/` disagr
   - One-line meta below (e.g. "3 divisions · Head judge: Rizki")
   - Right-side actions: `Edit`, `Download Results`, `Lock` / `Unlock`, primary `Open →` (navigates to the workspace)
 - **Expanded body** shows one row per division-per-stage — Prelim and Final are separate rows, not combined:
-  - Left: `<div-name>` heading + pill (`Prelim` blue / `Final` accent) + mini top-3 table with columns `Player` (left) and `Final Score` (right-aligned). Max width 320px so score stays close to name on wide screens.
+  - Left: `<div-name>` heading + outlined pill (`Prelim` blue / `Final` accent) + mini top-3 table (plain numerals — place 1 in the accent, no medal badges) with columns `Player` (left) and `Final Score` (right-aligned). Max width 320px so score stays close to name on wide screens.
   - Right: `Result Detail` button (disabled + no table when there are no results yet — "No results yet." italic instead).
 
 ## Contest workspace — shared shell
@@ -25,7 +25,7 @@ Source of truth for the redesigned UI. When the app under `frontend/src/` disagr
 Every contest sub-page shares this shell (in this order):
 1. Top bar (global).
 2. `← Back to contests` crumb link (inside the standard `.wrap`, no other content on this line).
-3. **Tab bar** — sticky at `top: 0`; the top bar scrolls away underneath it, which keeps the most content on screen on short viewports. Tabs, in order: **Divisions · Judges · Players · Input Score · Result Detail**. Horizontally scrollable on mobile — `.tabs-inner` therefore also pins `overflow-y: hidden`, since setting only `overflow-x: auto` makes the other axis compute to `auto` and any vertical overflow raises an unwanted scrollbar. The -1px overlap that tucks the active tab's underline over the bar's bottom border belongs on `.tabs-inner`, not on `.tab`: on `.tab` it overflows the scroll container.
+3. **Tab bar** — a segmented control (active tab is a raised tile with an accent dot), sticky at `top: 0`; the top bar scrolls away underneath it, which keeps the most content on screen on short viewports. Tabs, in order: **Divisions · Judges · Players · Input Score · Result Detail**. Horizontally scrollable on mobile — `.tabs-inner` therefore also pins `overflow-y: hidden`, since setting only `overflow-x: auto` makes the other axis compute to `auto` and any vertical overflow raises an unwanted scrollbar. The strip hides its own scrollbar (`scrollbar-width: none`); on the wide Result Detail page it drops its `max-width` so the first tab lines up with the content edge.
 4. Page content in the standard `.wrap` (`max-width: 1080px`, 32px side padding).
 
 **Swipe between tabs** (touch only, `ContestWorkspaceLayout.vue`): swipe left for the next tab, right for the previous, no wrap-around at either end. Requires ≥60px of horizontal travel and 1.5× more horizontal than vertical movement, so ordinary vertical scrolling never fires it; a swipe that starts inside a horizontally scrollable element (a wide score table, the tab strip itself) belongs to that element and is ignored. `<html>` sets `overscroll-behavior-x: contain` — without it the browser's own back/forward swipe wins and a right-swipe on the first tab leaves the contest entirely. It must be on `<html>`, not `<body>`, which has no effect.
@@ -64,8 +64,8 @@ Each workspace page **must mirror the layout of its production Vue view** — sa
 ## Score input behavior (`.score-input-wrap`)
 
 Every numeric input on the Input Score page is a `.score-input-wrap` containing:
-- `<input class="score-input" data-group data-row data-col data-min data-max data-step>`
-- `.score-steppers` with two `.score-step` buttons (▲ up, ▼ down; `data-dir="up"` / `"down"`).
+- `<input class="score-input" data-group data-row data-col data-min data-max data-step>` (JetBrains Mono)
+- `.score-steppers` with two `.score-step` buttons (chevron-up / chevron-down `Icon.vue` icons). They are collapsed to zero width until the control is hovered or focused.
 
 **Spreadsheet-style keyboard navigation** (matches `frontend/src/components/ScoreNumberInput.vue`):
 - `ArrowUp` → focus same column, previous row.
@@ -147,6 +147,9 @@ Icons are monotone outline SVGs — Lucide-style paths inlined in **`frontend/sr
 - `chevron-right` — accordion caret on the contest list (CSS rotates it 90° when the card opens)
 - `chevron-up`, `chevron-down` — reserved for future collapsibles
 - `trash` — destructive row action (Delete/Remove) in Divisions, Judges, Players
+- `chevron-up`, `chevron-down` are also the score-input steppers.
+
+**One exception to "monotone":** `components/GoogleLogo.vue` is the full-color Google "G" on the login button (`.google-btn`). It is a brand asset and Google's sign-in guidelines require the original colors.
 
 Stroke uses `currentColor`, so any container's text color recolors the icon automatically (danger red on hover, muted grey when disabled, etc.).
 
